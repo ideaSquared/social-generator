@@ -25,6 +25,8 @@ jobs:
         run: curl -sSL --fail "$SHEET_CSV_URL" -o posts.csv
         env:
           SHEET_CSV_URL: ${{ secrets.SHEET_CSV_URL }}
+      - name: Check the sheet
+        run: python checks/claims_check.py posts.csv
       - name: Render
         env:
           ONLY: ${{ inputs.only }}
@@ -33,6 +35,13 @@ jobs:
             python render.py posts.csv --out out --only "$ONLY"
           else
             python render.py posts.csv --out out --new-only
+          fi
+      - name: Check, post-process and build the review page
+        run: |
+          if [ -f out/manifest.json ]; then
+            python checks/visual_check.py out
+            python postprocess.py all out
+            python gallery.py out --csv posts.csv
           fi
       - uses: actions/upload-artifact@v4
         with:

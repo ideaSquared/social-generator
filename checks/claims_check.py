@@ -266,6 +266,8 @@ def run(path, strict=False, stream=None):
         rows = list(csv.DictReader(f))
     seen, errors, warnings = set(), 0, 0
     for n, r in enumerate(rows, 2):                        # row 1 is the header
+        if not any((r.get(k) or '').strip() for k in ('Brand', 'Title', 'Content')):
+            continue                                       # blank row (only formulas)
         label = (r.get('Asset ID') or '').strip()
         if not label or label.lower() == 'text only':
             label = (r.get('Title') or '').strip()

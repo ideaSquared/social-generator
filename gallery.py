@@ -87,6 +87,8 @@ def load_posts(csv_path):
     posts = []
     for i, row in enumerate(rows):
         row = {k: (v or "").strip() for k, v in row.items() if k is not None}
+        if not (row.get("Brand") or row.get("Title") or row.get("Content")):
+            continue  # blank row (only formulas)
         week, day = parse_week_day(row.get("Week / day", ""))
         asset = row.get("Asset ID", "")
         has_asset = bool(asset) and asset.lower() != "text only"
