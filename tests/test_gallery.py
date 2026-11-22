@@ -50,6 +50,8 @@ class ParsingTests(unittest.TestCase):
         self.assertEqual(gallery.note_level("CONFLICT: homepage"), "conflict")
         self.assertEqual(gallery.note_level("Please confirm"), "flag")
         self.assertEqual(gallery.note_level("Per decision log"), "")
+        self.assertEqual(gallery.note_level("Checked against creatrgrid.com"), "")
+        self.assertEqual(gallery.note_level("Re-check the figure"), "flag")
 
 
 class HtmlTests(unittest.TestCase):

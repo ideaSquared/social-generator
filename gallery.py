@@ -30,7 +30,8 @@ UNSCHEDULED = (0, 99)
 
 _WEEK_DAY_RE = re.compile(r"week\s*(\d+)\s*[·\-–—.,:|/]*\s*([A-Za-z]+)?", re.I)
 _CAPTION_RE = re.compile(r"^[ \t]*caption[ \t]*:[ \t]*", re.I | re.M)
-_FLAG_RE = re.compile(r"conflict|confirm|check", re.I)
+# "checked"/"confirmed" describe work already done, so they do not flag.
+_FLAG_RE = re.compile(r"conflict|\b(?:re-?)?(?:confirm|check)\b|not confirmed", re.I)
 _CONFLICT_RE = re.compile(r"conflict", re.I)
 
 
