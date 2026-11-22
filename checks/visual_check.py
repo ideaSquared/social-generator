@@ -88,7 +88,10 @@ def ffprobe(path):
     return int(s['width']), int(s['height']), float(j['format']['duration'])
 
 
-def list_images(folder, video):
+def list_images(folder, video, card=False):
+    if card:
+        p = os.path.join(folder, 'card.png')
+        return [p] if os.path.isfile(p) else []
     d = os.path.join(folder, 'frames') if video else folder
     pre = 'frame_' if video else 'slide_'
     if not os.path.isdir(d):
@@ -103,7 +106,7 @@ def check_asset(entry, out_dir, rep, skip_video=False, skip_mtime=False):
     if not os.path.isdir(folder):
         rep.fail(asset, 'missing-folder', entry['folder'])
         return
-    imgs = list_images(folder, video)
+    imgs = list_images(folder, video, bool(entry.get('card')))
     if len(imgs) != entry['frames']:
         rep.fail(asset, 'frame-count', f"manifest says {entry['frames']}, found {len(imgs)}")
     want = FRAME_SIZE if video else SLIDE_SIZE

@@ -163,7 +163,12 @@ def render_media(post, entry, out_dir, out_file):
     items = []
     present = 0
     for i in range(1, n + 1):
-        rel = ("frames", "frame_%02d.png" % i) if is_video else ("slide_%02d.png" % i,)
+        if is_video:
+            rel = ("frames", "frame_%02d.png" % i)
+        elif entry.get("card"):
+            rel = ("card.png",)
+        else:
+            rel = ("slide_%02d.png" % i,)
         alt = texts[i - 1] if i - 1 < len(texts) else ""
         label = "%s %s %d of %d" % (post["asset"], "frame" if is_video else "slide", i, n)
         alt = "%s: %s" % (label, alt) if alt else label

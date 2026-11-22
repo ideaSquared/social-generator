@@ -122,6 +122,8 @@ def build_alt(entry):
                 parts.append("Ends with: " + strip_end(texts[-1]) + ".")
             body = " ".join(parts)
         return body + (" " + sentence(footnote) if footnote else "") + "\n"
+    if entry.get("card"):
+        return " ".join(sentence(t) for t in texts) + (" " + sentence(footnote) if footnote else "") + "\n"
     total = len(texts)
     lines = [f"Slide {i} of {total}: {t}" for i, t in enumerate(texts, 1)]
     if footnote:
@@ -167,7 +169,7 @@ def run(out_dir, mode, only=None):
     entries = select(load_manifest(out_dir), only)
     pdfs = alts = skipped = 0
     for e in entries:
-        if mode in ("pdf", "all") and not e.get("video"):
+        if mode in ("pdf", "all") and not e.get("video") and not e.get("card"):
             if make_pdf(out_dir, e):
                 pdfs += 1
             else:
