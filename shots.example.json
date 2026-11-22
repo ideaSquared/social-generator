@@ -1,0 +1,38 @@
+[
+  {
+    "name": "creatrgrid-alex-phone",
+    "brand": "CreatrGrid",
+    "url": "https://creatrgrid.com/creator/alex",
+    "device": "phone",
+    "wait_ms": 5000,
+    "headline": "One link. Every platform you post to.",
+    "layouts": ["post", "story", "landscape"]
+  },
+  {
+    "name": "creatrgrid-maya-phone",
+    "brand": "CreatrGrid",
+    "url": "https://creatrgrid.com/creator/maya",
+    "device": "phone",
+    "wait_ms": 5000,
+    "color_scheme": "dark",
+    "layouts": ["post", "story"]
+  },
+  {
+    "name": "creatrgrid-alex-desktop",
+    "brand": "CreatrGrid",
+    "url": "https://creatrgrid.com/creator/alex",
+    "device": "desktop",
+    "wait_ms": 5000,
+    "headline": "One link. Every platform you post to.",
+    "layouts": ["post", "landscape"]
+  },
+  {
+    "name": "creatrgrid-home-desktop",
+    "brand": "CreatrGrid",
+    "url": "https://creatrgrid.com/",
+    "device": "desktop",
+    "wait_ms": 5000,
+    "scroll_y": 0,
+    "layouts": ["landscape", "post"]
+  }
+]

@@ -2,6 +2,14 @@
 
 What to build next, in rough priority order. Nothing here needs AI unless it says so.
 
+**Built:** PDF export, 9:16 story versions, text, stat and quote cards, video covers, alt text, motion in videos,
+product screenshots, the brand kit, the review gallery, visual checks and the claims check.
+
+**Decided against for now:** subtitles (the videos have no speech), 1:1 and 16:9 sizes (4:5 covers the feeds in use),
+pricing card from the live site (prices are already in the sheet), design tokens sync (the design systems are not in this repo).
+
+**Still open in sections 1 to 4:** scripted walkthrough videos and "What shipped" cards.
+
 ## 1. More asset types from the same sheet
 
 | Idea | What it gives you | Notes |

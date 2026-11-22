@@ -1,0 +1,6 @@
+<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Fixture client-rendered page</title>
+<style>*{box-sizing:border-box;margin:0}body{font-family:Inter,system-ui,sans-serif;background:#fff;color:#0f172a;padding:32px 20px}
+h1{font-size:28px;margin-bottom:16px}.r{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}.r div{height:150px;border-radius:18px}
+.t{height:24px;color:#64748b;font-size:14px}</style></head><body><div id="app"></div>
+<script>setTimeout(function(){var c=['#7c3aed','#ec4899','#0ea5e9','#f59e0b','#10b981','#ef4444','#14b8a6','#8b5cf6','#3b82f6','#84cc16','#f472b6','#6d28d9'];
+document.getElementById('app').innerHTML='<h1>Rendered after 1.5s</h1><div class="r">'+c.map(function(x){return '<div style="background:'+x+'"></div>'}).join('')+'</div>';},1500);</script></body></html>
