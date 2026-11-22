@@ -1,0 +1,26 @@
+name: Checks
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Pillow
+        run: pip install pillow
+      - name: Unit tests
+        run: python -m unittest discover -s tests
+      - name: Claims check (only if a sheet export is committed)
+        run: |
+          if [ -f posts.csv ]; then
+            python checks/claims_check.py posts.csv
+          else
+            echo "No posts.csv in the repository; skipping the claims check."
+          fi
