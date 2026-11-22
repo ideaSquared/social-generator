@@ -76,13 +76,13 @@ def validate_config(data):
             errs.append('duplicate name')
         else:
             seen.add(name)
-        if raw.get('brand') not in BRANDS:
+        if not isinstance(raw.get('brand'), str) or raw.get('brand') not in BRANDS:
             errs.append(f'brand must be one of {", ".join(BRANDS)}')
         url = raw.get('url')
         if not isinstance(url, str) or not re.match(r'^(https?|file)://\S+$', url):
             errs.append('url is required and must start with http://, https:// or file://')
         device = raw.get('device')
-        if device not in DEVICES:
+        if not isinstance(device, str) or device not in DEVICES:
             errs.append('device must be "phone" or "desktop"')
         wait = raw.get('wait_ms', DEFAULT_WAIT_MS)
         if isinstance(wait, bool) or not isinstance(wait, int) or not 0 <= wait <= 60000:
@@ -91,7 +91,7 @@ def validate_config(data):
         if isinstance(scroll, bool) or not isinstance(scroll, int) or not 0 <= scroll <= MAX_SCROLL_Y:
             errs.append(f'scroll_y must be an integer from 0 to {MAX_SCROLL_Y}')
         scheme = raw.get('color_scheme')
-        if scheme is not None and scheme not in SCHEMES:
+        if scheme is not None and (not isinstance(scheme, str) or scheme not in SCHEMES):
             errs.append('color_scheme must be "light" or "dark"')
         for k in ('headline', 'sub'):
             v = raw.get(k)
@@ -101,7 +101,7 @@ def validate_config(data):
             errs.append('sub needs a headline')
         layouts = raw.get('layouts', list(LAYOUTS))
         if (not isinstance(layouts, list) or not layouts
-                or any(l not in LAYOUTS for l in layouts) or len(set(layouts)) != len(layouts)):
+                or any(not isinstance(l, str) or l not in LAYOUTS for l in layouts) or len(set(layouts)) != len(layouts)):
             errs.append('layouts must be a non-empty list of unique values from post, story, landscape')
         chk = raw.get('check_blank', True)
         if not isinstance(chk, bool):
@@ -442,6 +442,8 @@ def run(shots, out, do_preflight=True):
             return shot['name'], ('ok', compose(shot, raw, out, tmp_dir))
         except CaptureError as e:
             return shot['name'], ('error', str(e))
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as e:
+            return shot['name'], ('error', f'{type(e).__name__}: {e}')
     with ThreadPoolExecutor(min(3, len(shots))) as ex:
         return dict(ex.map(one, shots))
 

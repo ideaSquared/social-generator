@@ -87,6 +87,8 @@ def load_posts(csv_path):
     posts = []
     for i, row in enumerate(rows):
         row = {k: (v or "").strip() for k, v in row.items() if k is not None}
+        if not (row.get("Brand") or row.get("Title") or row.get("Content")):
+            continue  # blank row (only formulas)
         week, day = parse_week_day(row.get("Week / day", ""))
         asset = row.get("Asset ID", "")
         has_asset = bool(asset) and asset.lower() != "text only"
@@ -161,7 +163,12 @@ def render_media(post, entry, out_dir, out_file):
     items = []
     present = 0
     for i in range(1, n + 1):
-        rel = ("frames", "frame_%02d.png" % i) if is_video else ("slide_%02d.png" % i,)
+        if is_video:
+            rel = ("frames", "frame_%02d.png" % i)
+        elif entry.get("card"):
+            rel = ("card.png",)
+        else:
+            rel = ("slide_%02d.png" % i,)
         alt = texts[i - 1] if i - 1 < len(texts) else ""
         label = "%s %s %d of %d" % (post["asset"], "frame" if is_video else "slide", i, n)
         alt = "%s: %s" % (label, alt) if alt else label

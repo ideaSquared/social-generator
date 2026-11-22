@@ -84,7 +84,7 @@ UNRESOLVED_CHECK = [r'CONFLICT', r'(?i)NOT confirmed']
 # End of rules.  Parsing and the checks follow.
 # =====================================================================
 
-KEYED = re.compile(r'^(Hook|Close|Sub|End|Footnote on asset)\s*:\s*(.*)$')
+KEYED = re.compile(r'^(Hook|Close|Sub|End|Footnote on asset|Stat|Label|Quote|By)\s*:\s*(.*)$')
 
 
 def parse(content):
@@ -126,6 +126,8 @@ def kind_of(fmt):
         return 'video'
     if fmt.startswith('Graphic'):
         return 'carousel'
+    if fmt.lower() in ('text card', 'stat card', 'quote card'):
+        return fmt.lower().split()[0] + '-card'          # text-card, stat-card, quote-card
     return 'text'
 
 
@@ -191,7 +193,7 @@ def check_row(r, seen_ids):
     # --- structure
     if brand not in BRANDS:
         err('unknown-brand', repr(brand))
-    if kind in ('video', 'carousel'):
+    if kind != 'text':
         if not aid or aid.lower() == 'text only':
             err('missing-asset-id', title)
         elif aid.lower() in seen_ids:
@@ -210,8 +212,19 @@ def check_row(r, seen_ids):
         for i, (hd, bd) in enumerate(d['slides'], 1):
             if not bd:
                 err('empty-slide-body', f'slide {i}: {hd}')
-    if kind == 'text' and platform.upper() in ('X', 'TWITTER', 'X (TWITTER)'):
-        n = len(re.sub(r'https?://\S+', 'x' * X_URL_LENGTH, content.strip()))
+    if kind == 'text-card' and not d['body'].strip():
+        err('card-no-text', title)
+    if kind == 'stat-card':
+        if not d['keys'].get('stat'):
+            err('card-no-stat', title)
+        if not d['keys'].get('label'):
+            err('card-no-label', title)
+    if kind == 'quote-card' and not d['keys'].get('quote'):
+        err('card-no-quote', title)
+    if platform.upper() in ('X', 'TWITTER', 'X (TWITTER)'):
+        # Text posts are posted whole; asset rows post only their caption.
+        posted = content if kind == 'text' else re.sub(r'^Caption:\s*', '', d['caption'])
+        n = len(re.sub(r'https?://\S+', 'x' * X_URL_LENGTH, posted.strip()))
         if n > X_LIMIT:
             err('x-post-too-long', f'{n} characters (limit {X_LIMIT})')
 
@@ -266,6 +279,8 @@ def run(path, strict=False, stream=None):
         rows = list(csv.DictReader(f))
     seen, errors, warnings = set(), 0, 0
     for n, r in enumerate(rows, 2):                        # row 1 is the header
+        if not any((r.get(k) or '').strip() for k in ('Brand', 'Title', 'Content')):
+            continue                                       # blank row (only formulas)
         label = (r.get('Asset ID') or '').strip()
         if not label or label.lower() == 'text only':
             label = (r.get('Title') or '').strip()

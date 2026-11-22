@@ -1,43 +1,117 @@
 # Social asset generator
 
-Turns rows in the **Social posts** sheet into finished carousels (PNG) and text videos (MP4).
+Turns rows in the **Social posts** Google Sheet into finished carousels, cards and text videos.
 No AI is involved: the sheet is the only input, and the same row always gives the same asset.
+
+Brands supported: AdoptDontShop, ideaSquared, CreatrGrid.
+
+So far it has only been run on Linux. The Windows and macOS steps below are the expected ones but are untested.
+
+## Set up (once)
+
+### 1. Install the four things it needs
+
+| Needs | Check it is installed | Install |
+|---|---|---|
+| Python 3.10 or newer | `python --version` | [python.org](https://www.python.org/downloads/) (on Windows, tick "Add Python to PATH") |
+| Pillow | `python -c "import PIL"` | `pip install -r requirements.txt` |
+| Google Chrome or Chromium | open it | [google.com/chrome](https://www.google.com/chrome/) |
+| ffmpeg | `ffmpeg -version` | Windows: `winget install ffmpeg`. macOS: `brew install ffmpeg`. Ubuntu: `sudo apt install ffmpeg` |
+
+On Windows, use `py` in place of `python` if `python` is not found.
+
+### 2. Get the code
+
+```
+git clone https://github.com/ideaSquared/social-generator.git
+cd social-generator
+pip install -r requirements.txt
+```
+
+### 3. Tell it where Chrome is (only if step 5 says it cannot find Chrome)
+
+The tool looks for `google-chrome` or `chromium` on your PATH. If Chrome is somewhere else, set `CHROME` to its full path first.
+
+```
+# Windows (PowerShell)
+$env:CHROME = "C:\Program Files\Google\Chrome\Application\chrome.exe"
+
+# macOS
+export CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+```
+
+### 4. Check the install
+
+```
+python -m unittest discover -s tests
+```
+
+This should end with `OK`. It does not need Chrome or the sheet.
+
+### 5. Do a first render of one asset
+
+1. Open the sheet, go to the **Social posts** tab, then File > Download > Comma-separated values.
+2. Save the file as `posts.csv` in the `social-generator` folder.
+3. Run:
+
+```
+python render.py posts.csv --out out --only ADS-C01
+```
+
+You should get `out/AdoptDontShop/ADS-C01_.../slide_01.png` and so on. If that works, setup is done.
+
+`posts.csv` and `out/` are ignored by git, so they are never committed.
+
+## Each week
+
+```
+python checks/claims_check.py posts.csv          # 1. catch missing sources and broken rows
+python render.py posts.csv --out out --new-only  # 2. make assets for rows where "Assets made" is empty
+python checks/visual_check.py out                # 3. catch wrong sizes, clipped text, stale videos
+python postprocess.py all out                    # 4. LinkedIn PDFs and alt text
+python gallery.py out --csv posts.csv            # 5. open out/index.html to review the week
+```
+
+Then, in the sheet, type `Yes` in **Assets made** for the rows you rendered, post from the platform tabs,
+and paste each live link into **Posted URL**.
+
+Useful `render.py` options:
+
+- `--only ADS-C01,CG-V03` renders just those Asset IDs.
+- `--new-only` skips rows where "Assets made" is filled in.
+- `--stories` also makes a 9:16 story version of every carousel.
+- `--dry-run` reads the sheet and reports what it would make, without rendering.
 
 ## What it makes
 
-| Sheet format | Output |
+| Sheet format | Output in `out/<Brand>/<AssetID>_<title>/` |
 |---|---|
-| `Graphic / carousel` | `slide_01.png` … at 1080x1350 |
-| `Text-on-screen video` | `video.mp4` at 1080x1920, plus every frame as a PNG |
+| `Graphic / carousel` | `slide_01.png` onwards at 1080x1350 |
+| `Text-on-screen video` | `video.mp4` at 1080x1920, every frame as a PNG, and `cover.png` |
+| `Text card`, `Stat card`, `Quote card` | one `card.png` at 1080x1350 |
+| `Text post` | nothing (the text is the post) |
 
-| `Text card`, `Stat card`, `Quote card` | one `card.png` at 1080x1350 (see `docs/card-formats.md`) |
+## The sheet
 
-Every video also gets a `cover.png`. Add `--stories` to get a 9:16 story version of each carousel.
+The **Start here** tab in the sheet explains every column and has a copyable Content template for each format.
+The tool finds columns by their header name, so columns can be reordered but not renamed.
 
-Brands supported: AdoptDontShop, ideaSquared, CreatrGrid. Rows with any other brand or format are skipped.
+| Column | Used by | What it does |
+|---|---|---|
+| Brand | all | Picks the design |
+| Format | all | Picks what gets made |
+| Asset ID | all | Unique name for the asset and its folder |
+| Title | render | Carousel cover headline |
+| Content | all | The script, then the caption |
+| Pillar | render | Small label on the asset |
+| Assets made | render | `--new-only` skips rows where this is filled |
+| Platform, Also post to, Week / day | gallery, checks | Grouping, filters and the X length check |
+| Check before posting | gallery, checks | Source for each claim; `allow:` overrides |
+| Ready? | you | Filled in by the sheet: `OK`, or what is missing |
 
-## Run it
+### How to write the Content cell
 
-You need Python 3.10+, Pillow, Google Chrome or Chromium, and ffmpeg.
-
-```
-pip install pillow
-python render.py posts.csv --out out
-```
-
-Get `posts.csv` from the sheet: open the Social posts tab, then File > Download > Comma-separated values.
-
-Useful options:
-
-- `--only ADS-C01,CG-V03` renders just those Asset IDs.
-- `--new-only` skips rows where "Assets made" is already filled in.
-- Set the `CHROME` environment variable if Chrome is not on your PATH.
-
-## How to write a row
-
-The script reads these columns: Brand, Title, Content, Asset ID, Pillar, Format, Assets made.
-
-**Text video** (Content cell):
+**Text video**:
 
 ```
 Hook: The opening line.
@@ -47,7 +121,7 @@ Beats:
 Close: The closing line.
 Footnote on asset: Source: where the figure came from.
 
-Caption: anything from here down is ignored by the script
+Caption: anything from here down is not put on the asset
 ```
 
 **Carousel** (the Title column is the cover headline):
@@ -60,8 +134,10 @@ Slides:
 End: Text for the last slide.
 Footnote on asset: optional
 
-Caption: ignored by the script
+Caption: not put on the asset
 ```
+
+**Cards**: see `docs/card-formats.md`.
 
 Rules that matter:
 
@@ -69,31 +145,45 @@ Rules that matter:
 - "Footnote on asset" is optional. When present it appears small at the bottom of every frame.
 - Text sizes shrink automatically for long lines, but keep beats under about 12 words.
 
-## Other tools
+## All the tools
 
 Each is a separate script with its own notes in `docs/`.
 
 | Script | What it does | Notes |
 |---|---|---|
+| `render.py posts.csv --out out` | Carousels, cards, videos, covers, story versions | `docs/card-formats.md` |
 | `postprocess.py all out` | One PDF per carousel (LinkedIn document posts) and alt text per asset | `docs/postprocess.md` |
-| `motion.py out` | A `video_motion.mp4` per video with a progress bar, slow push-in and transitions | `docs/motion.md` |
-| `gallery.py out --csv posts.csv` | One review page showing a week's posts, captions and check notes | `docs/gallery.md` |
+| `motion.py out` | A `video_motion.mp4` per video with a progress bar, slow push-in and transitions. Slow: a few minutes per video | `docs/motion.md` |
+| `gallery.py out --csv posts.csv` | One review page showing each week's posts, captions and check notes | `docs/gallery.md` |
 | `brandkit.py --out out` | Banners, avatars, highlight covers and link preview images per brand | `docs/brandkit.md` |
-| `product_shots.py shots.json --out out` | Screenshots of your own pages in phone or browser frames | `docs/product-shots.md` |
+| `product_shots.py shots.example.json --out out/product-shots` | Screenshots of your own pages in phone or browser frames. Needs internet access | `docs/product-shots.md` |
 | `checks/claims_check.py posts.csv` | Flags figures with no source, banned phrases and rows that would not render | `docs/checks.md` |
 | `checks/visual_check.py out` | Flags wrong sizes, unpainted corners, text at the edge and stale videos | `docs/checks.md` |
 
-Run the tests with `python -m unittest discover -s tests`.
+## Run it on GitHub instead (optional)
 
-## Run it on GitHub instead
+`.github/workflows/render.yml` does the weekly steps on GitHub and attaches a zip of the assets to the workflow run.
 
-`.github/workflows/render.yml` renders everything and attaches a zip to the workflow run.
-Add one repository secret, `SHEET_CSV_URL`, holding a CSV link to the Social posts tab
-(File > Share > Publish to web > Social posts > CSV). That link is public to anyone who has it,
-so use the manual download above if you'd rather not publish the tab.
+1. In the sheet: File > Share > Publish to web. Choose the **Social posts** tab and **Comma-separated values**, then Publish. Copy the link.
+   That link is readable by anyone who has it, so skip this section if you would rather not publish the tab.
+2. In the GitHub repo: Settings > Secrets and variables > Actions > New repository secret. Name it `SHEET_CSV_URL` and paste the link.
+3. Actions > Render social assets > Run workflow. Leave "only" blank to render every row where "Assets made" is empty.
+4. When it finishes, download `social-assets` from the run's Artifacts section.
+
+It also runs every Monday at 06:00 UTC. `.github/workflows/checks.yml` runs the tests on every pull request.
 
 ## Changing the look
 
 Each brand's templates are plain functions near the top of `render.py`
 (`ads_*`, `isq_*`, `cg_*`). Colours and fonts come from each brand's design system.
 Fonts are bundled in `fonts/`.
+
+## If something goes wrong
+
+| Problem | Fix |
+|---|---|
+| "Chrome not found" or blank images | Set `CHROME` (set-up step 3) |
+| `ffmpeg: command not found` | Install ffmpeg (set-up step 1) and reopen the terminal |
+| A row is skipped | Check its **Ready?** cell in the sheet, then run `checks/claims_check.py` |
+| `--new-only` makes nothing | Every row has "Assets made" filled in. Clear the cell for rows you want remade |
+| `visual_check.py` says a video is stale after unzipping | Add `--skip-mtime` |
