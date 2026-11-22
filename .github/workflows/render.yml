@@ -1,0 +1,42 @@
+name: Render social assets
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Asset IDs to render, comma-separated (blank = all)"
+        required: false
+        default: ""
+  schedule:
+    - cron: "0 6 * * 1"   # Mondays 06:00 UTC
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-noto-color-emoji
+          pip install pillow
+      - name: Download the sheet
+        run: curl -sSL --fail "$SHEET_CSV_URL" -o posts.csv
+        env:
+          SHEET_CSV_URL: ${{ secrets.SHEET_CSV_URL }}
+      - name: Render
+        env:
+          ONLY: ${{ inputs.only }}
+        run: |
+          if [ -n "$ONLY" ]; then
+            python render.py posts.csv --out out --only "$ONLY"
+          else
+            python render.py posts.csv --out out --new-only
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: social-assets
+          path: |
+            out
+            !out/.html
