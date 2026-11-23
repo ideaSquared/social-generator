@@ -168,6 +168,7 @@ Each is a separate script with its own notes in `docs/`.
 | `product_shots.py shots.example.json --out out/product-shots` | Screenshots of your own pages in phone or browser frames. Needs internet access | `docs/product-shots.md` |
 | `checks/claims_check.py posts.csv` | Flags figures with no source, banned phrases and rows that would not render | `docs/checks.md` |
 | `checks/visual_check.py out` | Flags wrong sizes, unpainted corners, text at the edge and stale videos | `docs/checks.md` |
+| `automate.py --out out --every 60` | Does all the weekly steps on a timer, rendering only rows that changed | `docs/automate.md` |
 
 ## Run it on GitHub instead (optional)
 
@@ -180,6 +181,62 @@ Each is a separate script with its own notes in `docs/`.
 4. When it finishes, download `social-assets` from the run's Artifacts section.
 
 It also runs every Monday at 06:00 UTC. `.github/workflows/checks.yml` runs the tests on every pull request.
+
+## Run it on a home server (automatic)
+
+`automate.py` does the weekly steps on a timer and serves the review page, so the only manual jobs left are
+approving and posting. It runs in Docker on any always-on Linux box. Details are in `docs/automate.md`.
+
+This has been tested by running `automate.py` on Linux. The Docker image and compose file have not been built or run yet.
+
+**One-time set-up**
+
+1. Make a Google service account (this is what lets the box read the sheet without publishing it):
+   1. Go to [console.cloud.google.com](https://console.cloud.google.com), create a project, and enable the **Google Sheets API**.
+   2. IAM & Admin > Service accounts > Create service account. No roles are needed.
+   3. Open the account > Keys > Add key > JSON. A key file downloads.
+   4. In the sheet, click Share and add the service account's email address as **Editor**.
+2. On the box, get the code. The repo is private, so the box needs a read-only deploy key
+   (GitHub repo > Settings > Deploy keys).
+   ```
+   git clone git@github.com:ideaSquared/social-generator.git
+   cd social-generator/deploy
+   ```
+3. Put the key file at `deploy/secrets/service-account.json` and make it readable by the container: `chmod 644 secrets/service-account.json`.
+4. Copy the settings file and fill in `SHEET_ID`:
+   ```
+   cp .env.example .env
+   ```
+5. Start it:
+   ```
+   docker compose up -d --build
+   ```
+6. Point your reverse proxy at port `8087` on the box, for example as `social.home.alexjenkinson.com`.
+
+`.env` and the key file are ignored by git. Never commit them.
+
+**Day to day**
+
+- Edit the sheet. Within an hour the review page and `posts/` folders update. Only rows whose text changed are rendered again.
+- Open the review page, approve, and post from `posts/<Asset ID>/<Platform>/`.
+- "Assets made" is filled in for you. "Posted URL" is still yours to paste.
+- `docker compose logs -f runner` shows what it did. `<review page>/status.json` shows the last result.
+- To update the code: `git pull && docker compose up -d --build`.
+
+The review page shows unpublished drafts. Keep it on your home network, or put a login in front of it.
+
+### Plan to move it off the home server
+
+The box only does three jobs, and each can move separately. Nothing in `automate.py` is tied to the home server.
+
+| Stage | Change | Needs | Cost |
+|---|---|---|---|
+| 1 (now) | Home server renders and serves the review page. Posting is by hand | This section | Free |
+| 2 | Add a scheduler so rows marked "Ready" are posted and "Posted URL" is filled in. Postiz is the likely fit | A developer app per platform, each approved by that platform. Start with LinkedIn | Free if self-hosted; X may charge for API access |
+| 3a | Move everything to a small cloud server (VPS). Same `deploy/` folder, same commands | A VPS with about 2 GB of memory for Postiz, and a login in front of the review page | A few pounds a month |
+| 3b | Or split it: GitHub Actions renders (`render.yml`), Cloudflare Pages serves the review page behind Cloudflare Access | A Pages project, an Access policy, and the service account key as a GitHub secret | Free. The scheduler still needs a server or the hosted Postiz plan |
+
+Move when one of these happens: the home server is rebuilt or unreliable, someone else needs the review page, or stage 2 is live and missed posts would matter.
 
 ## Changing the look
 
