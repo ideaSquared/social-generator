@@ -6,8 +6,6 @@ on:
         description: "Asset IDs to render, comma-separated (blank = all)"
         required: false
         default: ""
-  schedule:
-    - cron: "0 6 * * 1"   # Mondays 06:00 UTC
 jobs:
   render:
     runs-on: ubuntu-latest

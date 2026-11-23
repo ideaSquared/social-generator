@@ -51,8 +51,9 @@ pricing card from the live site (prices are already in the sheet), design tokens
 
 ## 5. Wider social automation (beyond asset building)
 
-1. Publishing from the sheet: a scheduler posts rows that have a date and writes the link back to "Posted URL". Postiz is the likely fit. Needs a decision.
-   The unattended render and review page are done (`automate.py`, `deploy/`); the stages after that are in the README under "Plan to move it off the home server".
+1. Publishing from the sheet: not planned. Posting is done by hand with each platform's own scheduler (README, "Posting").
+   Doing it through an API needs a developer app approved by each platform, which is not worth it at this volume.
+   The unattended render and review page exist as an option (`automate.py`, `deploy/`).
 2. Changelog to draft posts: each public changelog entry becomes a draft row from a fixed template.
 3. Rescue lead alerts: forward new Instagram and Facebook messages to the existing alerts channel.
 4. Tracked links: tag each CreatrGrid link per post and platform from the Asset ID.
