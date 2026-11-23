@@ -82,14 +82,24 @@ def column_letter(index):
     return s
 
 
-def made_updates(header, rows, asset_ids, tab, value):
-    """Cells to fill in "Assets made" for the rows just rendered. Rows are sheet rows 2, 3, ... in order."""
+def made_updates(rows, pending, tab, value):
+    """-> (cells to fill in "Assets made", asset IDs they cover).
+
+    `rows` must be freshly read: positions come from them, by Asset ID. A row whose asset text no longer matches
+    what was rendered (`pending` maps asset ID -> hash) is left alone; it will be rendered again next pass.
+    """
+    header = list(rows[0]) if rows else []
     if MADE not in header:
-        return []
+        return [], set()
     col = column_letter(header.index(MADE))
     quoted = "'" + tab.replace("'", "''") + "'"
-    return [{'range': f'{quoted}!{col}{n}', 'values': [[value]]}
-            for n, row in enumerate(rows, 2) if (row.get('Asset ID') or '').strip() in asset_ids]
+    updates, done = [], set()
+    for n, row in enumerate(rows, 2):            # sheet rows 2, 3, ... in order
+        aid = (row.get('Asset ID') or '').strip()
+        if aid in pending and aid not in done and renderable(row) and row_hash(row) == pending[aid]:
+            updates.append({'range': f'{quoted}!{col}{n}', 'values': [[value]]})
+            done.add(aid)
+    return updates, done
 
 
 def write_back(session, sheet_id, updates):
@@ -117,13 +127,16 @@ def fingerprint(rows):
     return hashlib.sha256(json.dumps(data, ensure_ascii=False, default=str).encode()).hexdigest()
 
 
-def plan(rows, hashes, manifest):
-    """-> (asset IDs to render, {asset ID: hash} for every renderable row). First row wins for a repeated ID."""
+def plan(rows, hashes, manifest, out=None):
+    """-> (asset IDs to render, {asset ID: hash} for every renderable row). First row wins for a repeated ID.
+
+    With `out`, an asset whose folder has gone from disk counts as not rendered."""
     current = {}
     for row in rows:
         if renderable(row):
             current.setdefault(row['Asset ID'].strip(), row_hash(row))
-    made = {m['asset'] for m in manifest}
+    made = {m['asset'] for m in manifest
+            if out is None or (m.get('folder') and (Path(out) / m['folder']).is_dir())}
     todo = sorted(a for a, h in current.items() if hashes.get(a) != h or a not in made)
     return todo, current
 
@@ -161,9 +174,26 @@ def step(name, script, *args, run=subprocess.run):
         raise Failed(f'{name} failed (exit {code}). The lines above say which rows.')
 
 
+def read_sheet(session, sheet_id, tab, url):
+    return table_to_csv(fetch_table(session, sheet_id, tab)) if session else fetch_csv_url(url)
+
+
+def flush_pending(session, sheet_id, tab, rows, pending, value):
+    """Fill in "Assets made" for rendered rows. -> (what is still pending, a note for the status message)."""
+    updates, _ = made_updates(rows, pending, tab, value)
+    if not updates:
+        return {}, ''            # edited or deleted since: nothing to stamp, the next pass renders them again
+    try:
+        write_back(session, sheet_id, updates)
+    except Exception as e:       # the assets are made either way; a read-only share is the usual cause
+        return pending, (f'; could not fill in "{MADE}" ({type(e).__name__}), will try again. '
+                         'If this keeps happening, share the sheet with the service account as Editor.')
+    return {}, f'; filled in "{MADE}" for {len(updates)} row(s)'
+
+
 def run_once(out, env=os.environ, force=False, run=subprocess.run, session=None, today=None):
     """One pass. Returns a status dict; raises Failed if a step fails."""
-    out = Path(out); out.mkdir(parents=True, exist_ok=True)
+    out = Path(out).resolve(); out.mkdir(parents=True, exist_ok=True)   # absolute: the steps run from the repo folder
     sheet_id, creds, url = env.get('SHEET_ID'), env.get('GOOGLE_CREDENTIALS'), env.get('SHEET_CSV_URL')
     tab = env.get('SHEET_TAB') or 'Social posts'
     can_write = bool(sheet_id and creds) and env.get('SHEET_WRITE_BACK', '1') != '0'
@@ -171,29 +201,40 @@ def run_once(out, env=os.environ, force=False, run=subprocess.run, session=None,
         if session is None and not Path(creds).is_file():
             raise Failed(f'service account key not found at {creds}')
         session = session or google_session(creds, can_write)
-        csv_text = table_to_csv(fetch_table(session, sheet_id, tab))
     elif url:
-        csv_text = fetch_csv_url(url)
+        session = None
     else:
         raise Failed('set SHEET_ID and GOOGLE_CREDENTIALS, or SHEET_CSV_URL')
+    csv_text = read_sheet(session, sheet_id, tab, url)
     rows = read_rows(csv_text)
     if not rows or 'Asset ID' not in rows[0]:
         raise Failed(f'the "{tab}" tab came back empty or without an "Asset ID" column')
 
-    state_path = out / '.state.json'
+    state_path, manifest_path = out / '.state.json', out / 'manifest.json'
     state = load_json(state_path, {})
+    pending = dict(state.get('pending') or {}) if can_write else {}
+    stamp = (today or datetime.date.today()).isoformat()
+    manifest = load_json(manifest_path, [])
+    todo, current = plan(rows, {} if force else state.get('rows') or {}, manifest, out)
+    gone = {m['asset'] for m in manifest} - set(current)
     mark = fingerprint(rows)
-    if not force and state.get('sheet') == mark:
-        return {'ok': True, 'changed': False, 'rendered': [], 'message': 'sheet unchanged, nothing to do'}
 
+    def save(sheet, hashes):
+        state_path.write_text(json.dumps({'sheet': sheet, 'rows': hashes, 'pending': pending}), encoding='utf-8')
+
+    if state.get('sheet') == mark and not todo and not gone and (out / 'index.html').is_file():
+        note = ''
+        if pending:              # a write-back that failed earlier: try again without rendering anything
+            pending, note = flush_pending(session, sheet_id, tab, rows, pending, stamp)
+            save(mark, current)
+        return {'ok': True, 'changed': bool(note), 'rendered': [], 'message': 'sheet unchanged, nothing to do' + note}
+
+    # From here on the output is being changed, so forget "this sheet is done" until the pass finishes.
+    save(None, {a: h for a, h in (state.get('rows') or {}).items() if a not in todo})
     csv_path = out / 'posts.csv'
     csv_path.write_text(csv_text, encoding='utf-8')
     step('Checking the sheet', 'checks/claims_check.py', csv_path, run=run)
 
-    manifest_path = out / 'manifest.json'
-    manifest = load_json(manifest_path, [])
-    todo, current = plan(rows, {} if force else state.get('rows', {}), manifest)
-    gone = {m['asset'] for m in manifest} - set(current)
     if todo or gone:
         manifest = drop_assets(out, manifest, set(todo) | gone)   # old folders go, including ones named after an old title
         manifest_path.write_text(json.dumps(manifest, indent=1, ensure_ascii=False), encoding='utf-8')
@@ -202,19 +243,24 @@ def run_once(out, env=os.environ, force=False, run=subprocess.run, session=None,
         step(f'Rendering {len(todo)} asset(s)', 'render.py', csv_path, '--out', out, '--only', only, run=run)
         step('Checking the images', 'checks/visual_check.py', out, run=run)
         step('PDFs and alt text', 'postprocess.py', 'all', out, '--only', only, run=run)
-    if manifest_path.is_file() and load_json(manifest_path, []):
-        step('Building the review page', 'gallery.py', out, '--csv', csv_path, run=run)
+    step('Building the review page', 'gallery.py', out, '--csv', csv_path, run=run)
     step('Sorting into post folders', 'package.py', out, '--csv', csv_path, run=run)
 
-    state_path.write_text(json.dumps({'sheet': mark, 'rows': current}), encoding='utf-8')
+    if can_write:
+        pending.update({a: current[a] for a in todo})
+    save(mark, current)
     status = {'ok': True, 'changed': True, 'rendered': todo, 'message': f'{len(todo)} rendered, {len(gone)} removed'}
-    if todo and can_write:
-        updates = made_updates(list(rows[0]), rows, set(todo), tab, (today or datetime.date.today()).isoformat())
+    if pending:
+        # Rendering takes minutes and the sheet may have been sorted or edited meanwhile, so read it again and
+        # find each row by Asset ID before writing.
         try:
-            if updates:
-                write_back(session, sheet_id, updates)
-        except Exception as e:   # the assets are made either way; a read-only share is the usual cause
-            status['message'] += f'; could not fill in "{MADE}" ({type(e).__name__}). Share the sheet with the service account as Editor.'
+            fresh = read_rows(read_sheet(session, sheet_id, tab, url))
+        except Exception as e:
+            status['message'] += f'; could not re-read the sheet to fill in "{MADE}" ({type(e).__name__}), will try again'
+        else:
+            pending, note = flush_pending(session, sheet_id, tab, fresh, pending, stamp)
+            status['message'] += note
+            save(mark, current)
     return status
 
 
@@ -222,7 +268,8 @@ def save_status(out, status):
     status = dict(status, at=datetime.datetime.now().astimezone().isoformat(timespec='seconds'))
     if status.get('changed') is False:            # keep the last real run's details, just note the check
         last = load_json(Path(out) / 'status.json', {})
-        status = dict(last or status, checked=status['at'])
+        if last.get('ok'):                        # a failure that has since cleared must not keep showing
+            status = dict(last, checked=status['at'])
     Path(out, 'status.json').write_text(json.dumps(status, indent=1), encoding='utf-8')
 
 
