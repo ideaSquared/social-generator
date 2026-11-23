@@ -127,16 +127,40 @@ def fingerprint(rows):
     return hashlib.sha256(json.dumps(data, ensure_ascii=False, default=str).encode()).hexdigest()
 
 
+def asset_files(entry):
+    """The media files render.py writes for a manifest entry, relative to the output folder."""
+    folder = entry.get('folder') or ''
+    if not folder:
+        return []
+    if entry.get('video'):
+        names = ['video.mp4'] + (['cover.png'] if entry.get('cover') else [])
+    elif entry.get('card'):
+        names = ['card.png']
+    else:
+        names = ['slide_%02d.png' % k for k in range(1, int(entry.get('frames') or 0) + 1)]
+    return [f'{folder}/{n}' for n in names]
+
+
+def asset_complete(out, entry):
+    files = asset_files(entry)
+    return bool(files) and all((Path(out) / f).is_file() for f in files)
+
+
+def packaged_files(out):
+    """Every file package.py left under posts/, relative to the output folder."""
+    root = Path(out) / 'posts'
+    return sorted(str(p.relative_to(out)).replace(os.sep, '/') for p in root.rglob('*') if p.is_file()) if root.is_dir() else []
+
+
 def plan(rows, hashes, manifest, out=None):
     """-> (asset IDs to render, {asset ID: hash} for every renderable row). First row wins for a repeated ID.
 
-    With `out`, an asset whose folder has gone from disk counts as not rendered."""
+    With `out`, an asset with any of its image or video files missing from disk counts as not rendered."""
     current = {}
     for row in rows:
         if renderable(row):
             current.setdefault(row['Asset ID'].strip(), row_hash(row))
-    made = {m['asset'] for m in manifest
-            if out is None or (m.get('folder') and (Path(out) / m['folder']).is_dir())}
+    made = {m['asset'] for m in manifest if out is None or asset_complete(out, m)}
     todo = sorted(a for a, h in current.items() if hashes.get(a) != h or a not in made)
     return todo, current
 
@@ -219,10 +243,14 @@ def run_once(out, env=os.environ, force=False, run=subprocess.run, session=None,
     gone = {m['asset'] for m in manifest} - set(current)
     mark = fingerprint(rows)
 
-    def save(sheet, hashes):
-        state_path.write_text(json.dumps({'sheet': sheet, 'rows': hashes, 'pending': pending}), encoding='utf-8')
+    posts = state.get('posts')
 
-    if state.get('sheet') == mark and not todo and not gone and (out / 'index.html').is_file():
+    def save(sheet, hashes):
+        state_path.write_text(json.dumps({'sheet': sheet, 'rows': hashes, 'pending': pending, 'posts': posts}), encoding='utf-8')
+
+    # Nothing to do only if the sheet is the same AND everything the last pass made is still on disk.
+    intact = (out / 'index.html').is_file() and posts is not None and all((out / f).is_file() for f in posts)
+    if state.get('sheet') == mark and not todo and not gone and intact:
         note = ''
         if pending:              # a write-back that failed earlier: try again without rendering anything
             pending, note = flush_pending(session, sheet_id, tab, rows, pending, stamp)
@@ -248,6 +276,7 @@ def run_once(out, env=os.environ, force=False, run=subprocess.run, session=None,
 
     if can_write:
         pending.update({a: current[a] for a in todo})
+    posts = packaged_files(out)
     save(mark, current)
     status = {'ok': True, 'changed': True, 'rendered': todo, 'message': f'{len(todo)} rendered, {len(gone)} removed'}
     if pending:

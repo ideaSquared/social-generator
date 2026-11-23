@@ -174,6 +174,9 @@ Each is a separate script with its own notes in `docs/`.
 
 `.github/workflows/render.yml` does the weekly steps on GitHub and attaches a zip of the assets to the workflow run.
 
+This repo is public. That means the zip and the run's log (which prints text from the sheet) are open to everyone before you post: anyone can read the log, and anyone with a GitHub account can download the zip.
+Use this only if that is acceptable; the home server set-up below keeps drafts private.
+
 1. In the sheet: File > Share > Publish to web. Choose the **Social posts** tab and **Comma-separated values**, then Publish. Copy the link.
    That link is readable by anyone who has it, so skip this section if you would rather not publish the tab.
 2. In the GitHub repo: Settings > Secrets and variables > Actions > New repository secret. Name it `SHEET_CSV_URL` and paste the link.
@@ -196,10 +199,9 @@ This has been tested by running `automate.py` on Linux. The Docker image and com
    2. IAM & Admin > Service accounts > Create service account. No roles are needed.
    3. Open the account > Keys > Add key > JSON. A key file downloads.
    4. In the sheet, click Share and add the service account's email address as **Editor**.
-2. On the box, get the code. The repo is private, so the box needs a read-only deploy key
-   (GitHub repo > Settings > Deploy keys).
+2. On the box, get the code. The repo is public, so no key or login is needed:
    ```
-   git clone git@github.com:ideaSquared/social-generator.git
+   git clone https://github.com/ideaSquared/social-generator.git
    cd social-generator/deploy
    ```
 3. Put the key file at `deploy/secrets/service-account.json` and make it readable by the container: `chmod 644 secrets/service-account.json`.
@@ -211,9 +213,9 @@ This has been tested by running `automate.py` on Linux. The Docker image and com
    ```
    docker compose up -d --build
    ```
-6. Point your reverse proxy at port `8087` on the box, for example as `social.home.alexjenkinson.com`.
+6. Point your reverse proxy at port `8087` on the box, for example as `social.home.example.com`.
 
-`.env` and the key file are ignored by git. Never commit them.
+`.env` and the key file are ignored by git. Never commit them: this repo is public, so anything committed is visible to everyone.
 
 **Day to day**
 
