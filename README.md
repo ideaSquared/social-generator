@@ -94,9 +94,22 @@ Useful `render.py` options:
 
 Posting is done by hand, in one sitting a week, using each platform's own scheduler. Nothing in this repo posts for you.
 
-1. Open `out/posts/schedule.csv`. It lists that week's posts in calendar order.
-2. For each post, open its folder, for example `out/posts/ADS-C01/Instagram/`.
-3. In that platform's scheduler, upload the files in the folder, paste the text from the `_caption.txt` (or `_post.txt`) file, and set the date.
+1. Open `out/posts/schedule.csv`. It lists every post in the sheet in calendar order, by "Week / day" label, not by date.
+   It does not know what is approved or already live, so pick this week's rows yourself and skip any that still need a check
+   or already have a **Posted URL** in the sheet.
+2. For each post you picked, open its folder, for example `out/posts/ADS-C01/Instagram/`. What is in it:
+
+   | File | What to do with it |
+   |---|---|
+   | `_01.png`, `_02.png`, ... or one `.png` | Upload as the post's images, in number order |
+   | `.pdf` (LinkedIn carousels) | Upload as a document post |
+   | `.mp4` | Upload as the video |
+   | `_cover.png` (videos only) | Optional: set it as the video's cover. Do not add it as an extra image |
+   | `_caption.txt` | Paste as the caption. Do not upload it |
+   | `_alt.txt` | Paste into the platform's alt text box, if it has one. Do not upload it |
+   | `_post.txt` (text posts) | Paste as the post. There is nothing to upload |
+
+3. Set the date and time in that platform's scheduler.
 4. When a post is live, paste its link into **Posted URL** in the sheet.
 
 ## What it makes
