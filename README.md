@@ -90,6 +90,28 @@ Useful `render.py` options:
 - `--stories` also makes a 9:16 story version of every carousel.
 - `--dry-run` reads the sheet and reports what it would make, without rendering.
 
+## Posting
+
+Posting is done by hand, in one sitting a week, using each platform's own scheduler. Nothing in this repo posts for you.
+
+1. Open `out/posts/schedule.csv`. It lists every post in the sheet in calendar order, by "Week / day" label, not by date.
+   It does not know what is approved or already live, so pick this week's rows yourself and skip any that still need a check
+   or already have a **Posted URL** in the sheet.
+2. For each post you picked, open its folder, for example `out/posts/ADS-C01/Instagram/`. What is in it:
+
+   | File | What to do with it |
+   |---|---|
+   | `_01.png`, `_02.png`, ... or one `.png` | Upload as the post's images, in number order |
+   | `.pdf` (LinkedIn carousels) | Upload as a document post |
+   | `.mp4` | Upload as the video |
+   | `_cover.png` (videos only) | Optional: set it as the video's cover. Do not add it as an extra image |
+   | `_caption.txt` | Paste as the caption. Do not upload it |
+   | `_alt.txt` | Paste into the platform's alt text box, if it has one. Do not upload it |
+   | `_post.txt` (text posts) | Paste as the post. There is nothing to upload |
+
+3. Set the date and time in that platform's scheduler.
+4. When a post is live, paste its link into **Posted URL** in the sheet.
+
 ## What it makes
 
 | Sheet format | Output in `out/<Brand>/<AssetID>_<title>/` |
@@ -175,7 +197,7 @@ Each is a separate script with its own notes in `docs/`.
 `.github/workflows/render.yml` does the weekly steps on GitHub and attaches a zip of the assets to the workflow run.
 
 This repo is public. That means the zip and the run's log (which prints text from the sheet) are open to everyone before you post: anyone can read the log, and anyone with a GitHub account can download the zip.
-Use this only if that is acceptable; the home server set-up below keeps drafts private.
+Use this only if that is acceptable; running it on your own computer keeps drafts private.
 
 1. In the sheet: File > Share > Publish to web. Choose the **Social posts** tab and **Comma-separated values**, then Publish. Copy the link.
    That link is readable by anyone who has it, so skip this section if you would rather not publish the tab.
@@ -183,12 +205,19 @@ Use this only if that is acceptable; the home server set-up below keeps drafts p
 3. Actions > Render social assets > Run workflow. Leave "only" blank to render every row where "Assets made" is empty.
 4. When it finishes, download `social-assets` from the run's Artifacts section.
 
-It also runs every Monday at 06:00 UTC. `.github/workflows/checks.yml` runs the tests on every pull request.
+It only runs when you start it; there is no timer. `.github/workflows/checks.yml` runs the tests on every pull request.
 
-## Run it on a home server (automatic)
+## Run it on an always-on box (optional)
+
+The normal way to use this tool is on your own computer, with the steps under "Each week".
+This section is only for running it unattended.
 
 `automate.py` does the weekly steps on a timer and serves the review page, so the only manual jobs left are
 approving and posting. It runs in Docker on any always-on Linux box. Details are in `docs/automate.md`.
+
+Rendering is heavy on the processor (headless Chrome and ffmpeg). On a low-power mini PC the first pass, which renders
+every row, can be too slow to be useful. You can also run one pass on your own computer instead of the weekly steps:
+`python automate.py --out out` (see `docs/automate.md` for the settings it needs).
 
 This has been tested by running `automate.py` on Linux. The Docker image and compose file have not been built or run yet.
 
@@ -226,19 +255,6 @@ This has been tested by running `automate.py` on Linux. The Docker image and com
 - To update the code: `git pull && docker compose up -d --build`.
 
 The review page shows unpublished drafts. Keep it on your home network, or put a login in front of it.
-
-### Plan to move it off the home server
-
-The box only does three jobs, and each can move separately. Nothing in `automate.py` is tied to the home server.
-
-| Stage | Change | Needs | Cost |
-|---|---|---|---|
-| 1 (now) | Home server renders and serves the review page. Posting is by hand | This section | Free |
-| 2 | Add a scheduler so rows marked "Ready" are posted and "Posted URL" is filled in. Postiz is the likely fit | A developer app per platform, each approved by that platform. Start with LinkedIn | Free if self-hosted; X may charge for API access |
-| 3a | Move everything to a small cloud server (VPS). Same `deploy/` folder, same commands | A VPS with about 2 GB of memory for Postiz, and a login in front of the review page | A few pounds a month |
-| 3b | Or split it: GitHub Actions renders (`render.yml`), Cloudflare Pages serves the review page behind Cloudflare Access | A Pages project, an Access policy, and the service account key as a GitHub secret | Free. The scheduler still needs a server or the hosted Postiz plan |
-
-Move when one of these happens: the home server is rebuilt or unreliable, someone else needs the review page, or stage 2 is live and missed posts would matter.
 
 ## Changing the look
 
