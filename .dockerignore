@@ -1,0 +1,10 @@
+# Keep secrets and local output out of the image. .gitignore does not apply to Docker builds.
+deploy/.env
+deploy/secrets/
+.git/
+.venv/
+out/
+posts.csv
+__pycache__/
+**/__pycache__/
+*.pyc

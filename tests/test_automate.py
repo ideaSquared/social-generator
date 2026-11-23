@@ -24,8 +24,12 @@ class FakeResponse:
 
 
 class FakeSession:
-    def __init__(self, values, post_error=None): self.values, self.post_error, self.posts, self.gets = values, post_error, [], []
-    def get(self, url, timeout=None): self.gets.append(url); return FakeResponse({'values': self.values})
+    """`later` is what the sheet returns from the second read on (someone edited it while rendering ran)."""
+    def __init__(self, values, post_error=None, later=None):
+        self.values, self.post_error, self.later, self.posts, self.gets = values, post_error, later, [], []
+    def get(self, url, timeout=None):
+        self.gets.append(url)
+        return FakeResponse({'values': self.later if self.later is not None and len(self.gets) > 1 else self.values})
     def post(self, url, json=None, timeout=None): self.posts.append((url, json)); return FakeResponse(error=self.post_error)
 
 
@@ -42,6 +46,8 @@ class FakeRun:
                 folder = self.out / 'ideaSquared' / f'{aid}_x'; folder.mkdir(parents=True, exist_ok=True)
                 man.append({'asset': aid, 'folder': f'ideaSquared/{aid}_x'})
             mp.write_text(json.dumps(man))
+        if script == 'gallery.py' and script != self.fail:
+            (self.out / 'index.html').write_text('page')
         return type('R', (), {'returncode': 1 if script == self.fail else 0})()
     def scripts(self): return [c[0] for c in self.calls]
 
@@ -82,11 +88,23 @@ class Pure(unittest.TestCase):
         self.assertEqual(automate.fingerprint(a), automate.fingerprint(b))
         self.assertNotEqual(automate.fingerprint(a), automate.fingerprint(c))
 
-    def test_write_back_cells(self):
+    def test_write_back_cells_come_from_the_rows_given_and_skip_edited_rows(self):
         rows = automate.read_rows(automate.table_to_csv(table(TEXT, CAROUSEL, VIDEO)))
-        got = automate.made_updates(HEADER, rows, {'ISQ-V01'}, "Bob's posts", '2026-11-23')
+        pending = {'ISQ-V01': automate.row_hash(rows[2]), 'ISQ-C01': 'hash of older text'}
+        got, done = automate.made_updates(rows, pending, "Bob's posts", '2026-11-23')
         self.assertEqual(got, [{'range': "'Bob''s posts'!I4", 'values': [['2026-11-23']]}])
-        self.assertEqual(automate.made_updates(HEADER[:-1], rows, {'ISQ-V01'}, 'Social posts', 'x'), [])
+        self.assertEqual(done, {'ISQ-V01'})
+        no_column = [{k: v for k, v in r.items() if k != 'Assets made'} for r in rows]
+        self.assertEqual(automate.made_updates(no_column, pending, 'Social posts', 'x'), ([], set()))
+
+    def test_an_asset_whose_folder_has_gone_is_planned_again(self):
+        rows = automate.read_rows(automate.table_to_csv(table(CAROUSEL)))
+        _, hashes = automate.plan(rows, {}, [])
+        with tempfile.TemporaryDirectory() as d:
+            man = [{'asset': 'ISQ-C01', 'folder': 'ideaSquared/ISQ-C01_x'}]
+            self.assertEqual(automate.plan(rows, hashes, man, d)[0], ['ISQ-C01'])
+            (Path(d) / 'ideaSquared' / 'ISQ-C01_x').mkdir(parents=True)
+            self.assertEqual(automate.plan(rows, hashes, man, d)[0], [])
 
     def test_drop_assets_never_deletes_outside_the_output_folder(self):
         with tempfile.TemporaryDirectory() as d:
@@ -141,7 +159,7 @@ class Runs(unittest.TestCase):
     def test_a_failed_check_stops_before_rendering_and_is_retried(self):
         with self.assertRaises(automate.Failed):
             self.go(table(CAROUSEL), run=FakeRun(self.out, fail='claims_check.py'))
-        self.assertFalse((self.out / '.state.json').exists())
+        self.assertIsNone(json.loads((self.out / '.state.json').read_text())['sheet'])
         status, _, run = self.go(table(CAROUSEL))
         self.assertEqual(status['rendered'], ['ISQ-C01'])
 
@@ -151,11 +169,63 @@ class Runs(unittest.TestCase):
             self.go(None, session=session, run=FakeRun(self.out, fail='visual_check.py'))
         self.assertEqual(session.posts, [])
 
-    def test_write_back_can_be_turned_off_and_its_failure_is_not_fatal(self):
+    def test_write_back_can_be_turned_off(self):
         _, session, _ = self.go(table(CAROUSEL), env=dict(ENV, SHEET_WRITE_BACK='0'))
         self.assertEqual(session.posts, [])
-        status, _, _ = self.go(None, session=FakeSession(table(VIDEO), post_error=PermissionError('secret detail')), force=True)
+
+    def test_a_failed_write_back_is_not_fatal_and_is_retried_without_rendering(self):
+        status, _, _ = self.go(None, session=FakeSession(table(VIDEO), post_error=PermissionError('secret detail')))
         self.assertTrue(status['ok']); self.assertIn('Editor', status['message']); self.assertNotIn('secret detail', status['message'])
+        status, session, run = self.go(table(VIDEO))
+        self.assertEqual(run.calls, [])
+        self.assertEqual([u['range'] for u in session.posts[0][1]['data']], ["'Social posts'!I2"])
+        self.assertIn('filled in', status['message'])
+        _, session, _ = self.go(table(VIDEO))
+        self.assertEqual(session.posts, [])                                   # done once, not every pass
+
+    def test_write_back_follows_rows_that_moved_while_rendering(self):
+        session = FakeSession(table(CAROUSEL, VIDEO), later=table(TEXT, VIDEO, CAROUSEL))    # sorted meanwhile
+        self.go(None, session=session)
+        self.assertEqual(sorted(u['range'] for u in session.posts[0][1]['data']), ["'Social posts'!I3", "'Social posts'!I4"])
+        self.assertEqual(len(session.gets), 2)
+
+    def test_write_back_skips_a_row_edited_or_moved_to_another_column_layout_while_rendering(self):
+        edited = CAROUSEL[:6] + ['Changed title'] + CAROUSEL[7:]
+        session = FakeSession(table(CAROUSEL, VIDEO), later=[['Assets made'] + HEADER[:-1], [''] + edited, [''] + VIDEO])
+        self.go(None, session=session)
+        self.assertEqual([u['range'] for u in session.posts[0][1]['data']], ["'Social posts'!A3"])   # only the video, in the column's new place
+
+    def test_relative_output_folder_is_made_absolute_for_the_steps(self):
+        here = os.getcwd(); os.chdir(self.tmp.name); self.addCleanup(os.chdir, here)
+        run = FakeRun(Path(self.tmp.name).resolve() / 'out')
+        automate.run_once('out', env=ENV, run=run, session=FakeSession(table(CAROUSEL)), today=DAY)
+        for script, args in run.calls:
+            for a in args:
+                if 'out' in Path(a).parts or a.endswith('posts.csv'):
+                    self.assertTrue(os.path.isabs(a), (script, a))
+
+    def test_missing_output_is_rebuilt_even_when_the_sheet_is_unchanged(self):
+        self.go(table(CAROUSEL))
+        import shutil; shutil.rmtree(self.out / 'ideaSquared')
+        status, _, _ = self.go(table(CAROUSEL))
+        self.assertEqual(status['rendered'], ['ISQ-C01'])
+        (self.out / 'index.html').unlink()
+        _, _, run = self.go(table(CAROUSEL))
+        self.assertEqual(run.scripts(), ['claims_check.py', 'gallery.py', 'package.py'])
+
+    def test_a_failed_forced_pass_is_retried_in_full(self):
+        self.go(table(CAROUSEL, VIDEO))
+        with self.assertRaises(automate.Failed):
+            self.go(table(CAROUSEL, VIDEO), force=True, run=FakeRun(self.out, fail='visual_check.py'))
+        status, _, _ = self.go(table(CAROUSEL, VIDEO))
+        self.assertEqual(status['rendered'], ['ISQ-C01', 'ISQ-V01'])
+
+    def test_a_sheet_of_text_posts_still_gets_a_review_page_and_a_removed_asset_leaves_it(self):
+        _, _, run = self.go(table(TEXT))
+        self.assertEqual(run.scripts(), ['claims_check.py', 'gallery.py', 'package.py'])
+        self.go(table(TEXT, CAROUSEL))
+        _, _, run = self.go(table(TEXT))
+        self.assertIn('gallery.py', run.scripts())
 
     def test_force_renders_everything_again(self):
         self.go(table(CAROUSEL))
@@ -169,6 +239,19 @@ class Runs(unittest.TestCase):
             automate.run_once(self.out, env=ENV)
         with self.assertRaisesRegex(automate.Failed, 'empty'):
             self.go([])
+
+
+class Status(unittest.TestCase):
+    def test_a_cleared_failure_stops_showing(self):
+        with tempfile.TemporaryDirectory() as d:
+            idle = {'ok': True, 'changed': False, 'rendered': [], 'message': 'sheet unchanged, nothing to do'}
+            automate.save_status(d, {'ok': False, 'changed': True, 'rendered': [], 'message': 'URLError while running'})
+            automate.save_status(d, idle)
+            self.assertTrue(json.loads(Path(d, 'status.json').read_text())['ok'])
+            automate.save_status(d, {'ok': True, 'changed': True, 'rendered': ['A'], 'message': '1 rendered, 0 removed'})
+            automate.save_status(d, idle)
+            got = json.loads(Path(d, 'status.json').read_text())
+            self.assertEqual(got['rendered'], ['A']); self.assertIn('checked', got)
 
 
 if __name__ == '__main__':
