@@ -73,12 +73,15 @@ You should get `out/AdoptDontShop/ADS-C01_.../slide_01.png` and so on. If that w
 python checks/claims_check.py posts.csv          # 1. catch missing sources and broken rows
 python render.py posts.csv --out out --new-only  # 2. make assets for rows where "Assets made" is empty
 python checks/visual_check.py out                # 3. catch wrong sizes, clipped text, stale videos
-python postprocess.py all out                    # 4. LinkedIn PDFs and alt text
-python gallery.py out --csv posts.csv            # 5. open out/index.html to review the week
+python gallery.py out --csv posts.csv            # 4. open out/index.html to review the week
+python package.py out --csv posts.csv            # 5. sort everything into out/posts/<post>/<platform>/
 ```
 
-Then, in the sheet, type `Yes` in **Assets made** for the rows you rendered, post from the platform tabs,
-and paste each live link into **Posted URL**.
+Post from `out/posts`. Each post has one folder per platform, for example `out/posts/ADS-C01/Instagram/` and
+`out/posts/ADS-C01/Facebook/`, holding the files that platform needs and a caption adjusted for it
+(see `docs/package.md`). `out/posts/schedule.csv` lists every post in calendar order.
+
+Then, in the sheet, type `Yes` in **Assets made** for the rows you rendered, and paste each live link into **Posted URL**.
 
 Useful `render.py` options:
 
@@ -105,7 +108,7 @@ The tool finds columns by their header name, so columns can be reordered but not
 |---|---|---|
 | Brand | all | Picks the design |
 | Format | all | Picks what gets made |
-| Asset ID | all | Unique name for the asset and its folder |
+| Asset ID | all | Unique name for the post and its folder. Text posts have one too (`ISQ-L01`, `CG-X01`) |
 | Title | render | Carousel cover headline |
 | Content | all | The script, then the caption |
 | Pillar | render | Small label on the asset |
@@ -157,6 +160,7 @@ Each is a separate script with its own notes in `docs/`.
 | Script | What it does | Notes |
 |---|---|---|
 | `render.py posts.csv --out out` | Carousels, cards, videos, covers, story versions | `docs/card-formats.md` |
+| `package.py out --csv posts.csv` | One folder per post and platform, with the right files and a per-platform caption | `docs/package.md` |
 | `postprocess.py all out` | One PDF per carousel (LinkedIn document posts) and alt text per asset | `docs/postprocess.md` |
 | `motion.py out` | A `video_motion.mp4` per video with a progress bar, slow push-in and transitions. Slow: a few minutes per video | `docs/motion.md` |
 | `gallery.py out --csv posts.csv` | One review page showing each week's posts, captions and check notes | `docs/gallery.md` |

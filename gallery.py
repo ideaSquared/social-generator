@@ -91,7 +91,8 @@ def load_posts(csv_path):
             continue  # blank row (only formulas)
         week, day = parse_week_day(row.get("Week / day", ""))
         asset = row.get("Asset ID", "")
-        has_asset = bool(asset) and asset.lower() != "text only"
+        # Text posts can carry an ID (ISQ-L01) for packaging, but they have no rendered asset.
+        has_asset = bool(asset) and asset.lower() != "text only" and row.get("Format", "").strip().lower() != "text post"
         posts.append({
             "index": i,
             "week": week,
