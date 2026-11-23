@@ -3,3 +3,6 @@ __pycache__/
 posts.csv
 *.pyc
 .venv/
+deploy/.env
+deploy/secrets/*
+!deploy/secrets/README.md

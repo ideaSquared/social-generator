@@ -1,0 +1,3 @@
+# Only needed by automate.py when it reads the sheet with a Google service account.
+google-auth>=2.30
+requests>=2.32
