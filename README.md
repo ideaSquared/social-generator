@@ -28,6 +28,11 @@ cd social-generator
 pip install -r requirements.txt
 ```
 
+If you set up your machine with `eng`, steps 1 and 2 are mostly done for you: `eng setup` clones this repo into
+`~/ideasquared/social-generator` and installs `requirements.txt` into a `.venv` folder inside it. Use that Python
+for every command below: `.venv/bin/python` on macOS and Linux, `.venv\Scripts\python` on Windows.
+`eng doctor` tells you if Python or ffmpeg is missing; eng does not install those two, or Chrome.
+
 ### 3. Tell it where Chrome is (only if step 5 says it cannot find Chrome)
 
 The tool looks for `google-chrome` or `chromium` on your PATH. If Chrome is somewhere else, set `CHROME` to its full path first.
