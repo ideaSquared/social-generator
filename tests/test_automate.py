@@ -115,8 +115,21 @@ class Pure(unittest.TestCase):
             (Path(d) / 'i' / 'C' / 'slide_02.png').write_text('x')
             self.assertEqual(automate.plan(rows, hashes, man, d)[0], [])
 
+    def test_a_video_with_a_frame_missing_is_planned_again(self):
+        rows = automate.read_rows(automate.table_to_csv(table(VIDEO)))
+        _, hashes = automate.plan(rows, {}, [])
+        with tempfile.TemporaryDirectory() as d:
+            man = [{'asset': 'ISQ-V01', 'folder': 'i/V', 'frames': 2, 'video': True, 'cover': True}]
+            folder = Path(d) / 'i' / 'V'; (folder / 'frames').mkdir(parents=True)
+            for name in ('video.mp4', 'cover.png', 'frames/frame_01.png', 'frames/frame_02.png'):
+                (folder / name).write_text('x')
+            self.assertEqual(automate.plan(rows, hashes, man, d)[0], [])
+            (folder / 'frames' / 'frame_02.png').unlink()
+            self.assertEqual(automate.plan(rows, hashes, man, d)[0], ['ISQ-V01'])
+
     def test_expected_media_files_per_kind(self):
-        self.assertEqual(automate.asset_files({'folder': 'b/V', 'video': True, 'cover': True, 'frames': 5}), ['b/V/video.mp4', 'b/V/cover.png'])
+        self.assertEqual(automate.asset_files({'folder': 'b/V', 'video': True, 'cover': True, 'frames': 2}),
+                         ['b/V/video.mp4', 'b/V/cover.png', 'b/V/frames/frame_01.png', 'b/V/frames/frame_02.png'])
         self.assertEqual(automate.asset_files({'folder': 'b/Q', 'video': False, 'card': True, 'frames': 1}), ['b/Q/card.png'])
         self.assertEqual(automate.asset_files({'folder': 'b/C', 'video': False, 'frames': 2}), ['b/C/slide_01.png', 'b/C/slide_02.png'])
         self.assertEqual(automate.asset_files({'folder': ''}), [])

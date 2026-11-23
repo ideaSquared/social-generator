@@ -132,12 +132,13 @@ def asset_files(entry):
     folder = entry.get('folder') or ''
     if not folder:
         return []
-    if entry.get('video'):
-        names = ['video.mp4'] + (['cover.png'] if entry.get('cover') else [])
+    count = int(entry.get('frames') or 0)
+    if entry.get('video'):                       # the review page shows the frames, so they count too
+        names = ['video.mp4'] + (['cover.png'] if entry.get('cover') else []) + ['frames/frame_%02d.png' % k for k in range(1, count + 1)]
     elif entry.get('card'):
         names = ['card.png']
     else:
-        names = ['slide_%02d.png' % k for k in range(1, int(entry.get('frames') or 0) + 1)]
+        names = ['slide_%02d.png' % k for k in range(1, count + 1)]
     return [f'{folder}/{n}' for n in names]
 
 
