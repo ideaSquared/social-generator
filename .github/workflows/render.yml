@@ -43,6 +43,7 @@ jobs:
             python postprocess.py all out
             python gallery.py out --csv posts.csv
           fi
+          python package.py out --csv posts.csv
       - uses: actions/upload-artifact@v4
         with:
           name: social-assets

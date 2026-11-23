@@ -15,7 +15,11 @@ targets as targets.  Every rule lives in the RULES section below.
 import argparse
 import csv
 import re
+import os
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import captions  # noqa: E402
 
 # =====================================================================
 # RULES: edit this section to change what the check enforces.
@@ -223,8 +227,10 @@ def check_row(r, seen_ids):
         err('card-no-quote', title)
     if platform.upper() in ('X', 'TWITTER', 'X (TWITTER)'):
         # Text posts are posted whole; asset rows post only their caption.
-        posted = content if kind == 'text' else re.sub(r'^Caption:\s*', '', d['caption'])
-        n = len(re.sub(r'https?://\S+', 'x' * X_URL_LENGTH, posted.strip()))
+        # What X actually gets: its own `Caption for X:` block if there is one, else the general caption
+        # after package.py's rules (hashtags trimmed).
+        posted, _ = captions.caption_for('X', captions.captions_in(content, kind == 'text'))
+        n = captions.x_length(posted.strip())
         if n > X_LIMIT:
             err('x-post-too-long', f'{n} characters (limit {X_LIMIT})')
 

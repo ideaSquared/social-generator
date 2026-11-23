@@ -8,6 +8,8 @@ requests). Images and videos are referenced by relative path, so the folder
 can be zipped or opened straight from disk.
 """
 import argparse
+
+import captions
 import csv
 import html
 import json
@@ -60,10 +62,8 @@ def extract_caption(content, fmt=None, asset_id=None):
     content = (content or "").replace("\r\n", "\n").replace("\r", "\n").strip()
     is_text = (fmt or "").strip().lower() == "text post" or (
         (asset_id or "").strip().lower() in ("text only", ""))
-    if is_text:
-        return content
-    m = _CAPTION_RE.search(content)
-    return content[m.end():].strip() if m else ""
+    # The general caption only: `Caption for <Platform>:` blocks are separate posts, not part of this one.
+    return captions.captions_in(content, is_text).get("", "")
 
 
 def split_platforms(value):
@@ -91,7 +91,8 @@ def load_posts(csv_path):
             continue  # blank row (only formulas)
         week, day = parse_week_day(row.get("Week / day", ""))
         asset = row.get("Asset ID", "")
-        has_asset = bool(asset) and asset.lower() != "text only"
+        # Text posts can carry an ID (ISQ-L01) for packaging, but they have no rendered asset.
+        has_asset = bool(asset) and asset.lower() != "text only" and row.get("Format", "").strip().lower() != "text post"
         posts.append({
             "index": i,
             "week": week,
