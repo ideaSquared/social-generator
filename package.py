@@ -16,25 +16,12 @@ from pathlib import Path
 
 from PIL import Image
 
+import gallery
 import postprocess
 
-PLATFORMS = ('Instagram', 'Facebook', 'TikTok', 'LinkedIn', 'X')
+SAFE_ID = re.compile(r'^[A-Za-z0-9][A-Za-z0-9_-]*$')      # one plain folder name: no slashes, dots or drive letters
 
-# ---------------------------------------------------------------- per-platform caption rules
-# hashtags: the most a caption keeps (the sheet lists them most important first).
-# links: False where a link in a caption cannot be tapped, so it is swapped for LINK_NOTE.
-RULES = {
-    'Instagram': dict(hashtags=5, links=False),
-    'TikTok': dict(hashtags=4, links=False),
-    'Facebook': dict(hashtags=2, links=True),
-    'LinkedIn': dict(hashtags=3, links=True),
-    'X': dict(hashtags=2, links=True, limit=280),
-}
-LINK_NOTE = 'Link in bio.'
-X_URL_LENGTH = 23           # X counts every link as 23 characters
-URL_RE = re.compile(r'(?:https?://)?(?:[a-z0-9-]+\.)+(?:com|co\.uk|org|uk|io|app)(?:/\S*)?', re.I)
-TAG_RE = re.compile(r'#\w+')
-BLOCK_RE = re.compile(r'(?m)^Caption(?: for (\w+))?:[ \t]*')
+from captions import PLATFORMS, caption_for, captions_in  # noqa: F401  (re-exported for callers and tests)
 
 
 def warn(msg):
@@ -51,60 +38,6 @@ def platforms_for(row):
         if match and match not in out:
             out.append(match)
     return out
-
-
-def captions_in(content, is_text_post):
-    """{'': the general caption, 'Instagram': an override, ...} from a Content cell.
-
-    A text post has no Caption: line, because the whole cell is the post."""
-    if is_text_post:
-        return {'': content.strip()}
-    parts = BLOCK_RE.split(content)             # [script, name, text, name, text, ...]
-    found = {}
-    for name, text in zip(parts[1::2], parts[2::2]):
-        found[(name or '').strip()] = text.strip()
-    return found
-
-
-def split_tags(caption):
-    """(body, hashtags) where hashtags are the ones on trailing lines made only of hashtags."""
-    lines = caption.rstrip().split('\n')
-    tags = []
-    while lines and lines[-1].strip() and all(t.startswith('#') for t in lines[-1].split()):
-        tags = lines.pop().split() + tags
-    return '\n'.join(lines).rstrip(), tags
-
-
-def x_length(text):
-    return len(URL_RE.sub('x' * X_URL_LENGTH, text))
-
-
-def caption_for(platform, captions):
-    """The caption to paste on one platform. Returns (text, [warnings])."""
-    notes = []
-    override = next((v for k, v in captions.items() if k.lower() == platform.lower()), None)
-    if override is not None:
-        text = override                           # written for this platform: used as it is
-    else:
-        rule = RULES[platform]
-        body, tags = split_tags(captions.get('', ''))
-        if not rule['links'] and URL_RE.search(body):
-            kept = []
-            for line in body.split('\n'):
-                stripped = URL_RE.sub('', line).strip()
-                if URL_RE.search(line) and not re.search(r'\w', stripped):
-                    continue                       # the line was only a link
-                kept.append(URL_RE.sub('', line).rstrip() if URL_RE.search(line) else line)
-            body = '\n'.join(kept).rstrip()
-            if LINK_NOTE.lower() not in body.lower():
-                body += '\n\n' + LINK_NOTE
-        body = re.sub(r'\n{3,}', '\n\n', body)
-        tags = tags[:rule['hashtags']]
-        text = body + ('\n\n' + ' '.join(tags) if tags else '')
-    limit = RULES[platform].get('limit')
-    if limit and x_length(text) > limit:
-        notes.append(f'{x_length(text)} characters, over the {limit} limit')
-    return text.strip() + '\n', notes
 
 
 # ---------------------------------------------------------------- files
@@ -165,20 +98,27 @@ def run(out_dir, csv_path, only=None):
     root = out_dir / 'posts'
     written = skipped = 0
     schedule = []
+    current = set()
     for row in rows:
         aid, kind = (row.get('Asset ID') or '').strip(), kind_of(row.get('Format'))
         if not kind or not aid or aid.lower() == 'text only':
             continue
         if only and aid not in only:
             continue
+        # The ID becomes a folder that is deleted and rebuilt, so it must be a single plain name under out/posts.
+        if not SAFE_ID.match(aid) or (root / aid).resolve().parent != root.resolve():
+            warn(f'{aid!r}: not a usable Asset ID (letters, numbers, - and _ only), skipped'); skipped += 1; continue
+        if aid in current:
+            warn(f'{aid}: Asset ID used by more than one row, later row skipped'); skipped += 1; continue
+        current.add(aid)
+        if (root / aid).is_dir():
+            shutil.rmtree(root / aid)              # rebuilt whole, so no stale platform folders remain
         platforms = platforms_for(row)
         if not platforms:
             warn(f'{aid}: no platform set, skipped'); skipped += 1; continue
         entry = manifest.get(aid)
         if kind != 'text' and not entry:
             warn(f'{aid}: not rendered yet, skipped'); skipped += 1; continue
-        if (root / aid).exists():
-            shutil.rmtree(root / aid)              # rebuilt whole, so no stale platform folders remain
         captions = captions_in(row.get('Content') or '', kind == 'text')
         for platform in platforms:
             dest = root / aid / platform
@@ -194,12 +134,23 @@ def run(out_dir, csv_path, only=None):
             for note in notes:
                 warn(f'{aid}/{platform}: {note}')
             written += 1
-            schedule.append({'Week / day': row.get('Week / day', ''), 'Post': f'{aid}/{platform}', 'Brand': row.get('Brand', ''),
+            schedule.append({'_order': (gallery.parse_week_day(row.get('Week / day', '')), len(schedule)),
+                             'Week / day': row.get('Week / day', ''), 'Post': f'{aid}/{platform}', 'Brand': row.get('Brand', ''),
                              'Format': row.get('Format', ''), 'Title': row.get('Title', ''), 'Files': len(files) + 1,
                              'Check before posting': row.get('Check before posting', '')})
-    if schedule and not only:
-        with open(root / 'schedule.csv', 'w', newline='', encoding='utf-8') as f:
-            w = csv.DictWriter(f, list(schedule[0])); w.writeheader(); w.writerows(schedule)
+    schedule.sort(key=lambda s: s.pop('_order'))   # calendar order; rows on the same day keep sheet order
+    if not only:
+        # A full run mirrors the sheet: folders for rows that have gone are removed, and the schedule is rewritten.
+        if root.is_dir():
+            for d in root.iterdir():
+                if d.is_dir() and SAFE_ID.match(d.name) and d.name not in current:
+                    shutil.rmtree(d)
+        sched = root / 'schedule.csv'
+        if schedule:
+            with open(sched, 'w', newline='', encoding='utf-8') as f:
+                w = csv.DictWriter(f, list(schedule[0])); w.writeheader(); w.writerows(schedule)
+        elif sched.is_file():
+            sched.unlink()
     return written, skipped, schedule
 
 

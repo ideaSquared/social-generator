@@ -43,7 +43,8 @@ The sheet holds one caption per row. `package.py` adjusts it by fixed rules:
 | LinkedIn | kept | first 3 |
 | X | kept; a warning if the post is over 280 characters | first 2 |
 
-So list hashtags in the sheet with the most important first.
+So list hashtags in the sheet with the most important first, and put a link on a line of its own:
+that whole line is dropped on Instagram and TikTok. A link inside a sentence is cut out of the sentence.
 
 To write a different caption for one platform, add a block after the general one in the Content cell.
 It is used exactly as written:
@@ -62,4 +63,6 @@ Caption for TikTok: A shorter one for TikTok. #BuildInPublic
 - `--only ADS-C01,CG-X03` rebuilds just those posts.
 
 A post's folder is deleted and rebuilt each run, so removing a platform from the sheet removes its folder.
+A full run (no `--only`) also removes folders for rows that are no longer in the sheet and rewrites `schedule.csv`
+in calendar order. Asset IDs may only use letters, numbers, `-` and `_`.
 Rows that have not been rendered yet are skipped with a warning.
