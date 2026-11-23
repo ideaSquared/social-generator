@@ -44,10 +44,15 @@ class FakeRun:
             man = json.loads(mp.read_text()) if mp.is_file() else []
             for aid in args[args.index('--only') + 1].split(','):
                 folder = self.out / 'ideaSquared' / f'{aid}_x'; folder.mkdir(parents=True, exist_ok=True)
-                man.append({'asset': aid, 'folder': f'ideaSquared/{aid}_x'})
+                (folder / 'slide_01.png').write_text('png')
+                man.append({'asset': aid, 'folder': f'ideaSquared/{aid}_x', 'frames': 1, 'video': False})
             mp.write_text(json.dumps(man))
         if script == 'gallery.py' and script != self.fail:
             (self.out / 'index.html').write_text('page')
+        if script == 'package.py' and script != self.fail:
+            (self.out / 'posts' / 'P' / 'LinkedIn').mkdir(parents=True, exist_ok=True)
+            (self.out / 'posts' / 'P' / 'LinkedIn' / 'P_LinkedIn_caption.txt').write_text('caption')
+            (self.out / 'posts' / 'schedule.csv').write_text('schedule')
         return type('R', (), {'returncode': 1 if script == self.fail else 0})()
     def scripts(self): return [c[0] for c in self.calls]
 
@@ -97,14 +102,37 @@ class Pure(unittest.TestCase):
         no_column = [{k: v for k, v in r.items() if k != 'Assets made'} for r in rows]
         self.assertEqual(automate.made_updates(no_column, pending, 'Social posts', 'x'), ([], set()))
 
-    def test_an_asset_whose_folder_has_gone_is_planned_again(self):
+    def test_an_asset_with_any_media_file_missing_is_planned_again(self):
         rows = automate.read_rows(automate.table_to_csv(table(CAROUSEL)))
         _, hashes = automate.plan(rows, {}, [])
         with tempfile.TemporaryDirectory() as d:
-            man = [{'asset': 'ISQ-C01', 'folder': 'ideaSquared/ISQ-C01_x'}]
-            self.assertEqual(automate.plan(rows, hashes, man, d)[0], ['ISQ-C01'])
-            (Path(d) / 'ideaSquared' / 'ISQ-C01_x').mkdir(parents=True)
+            man = [{'asset': 'ISQ-C01', 'folder': 'i/C', 'frames': 2, 'video': False}]
+            self.assertEqual(automate.plan(rows, hashes, man, d)[0], ['ISQ-C01'])        # no folder
+            (Path(d) / 'i' / 'C').mkdir(parents=True)
+            self.assertEqual(automate.plan(rows, hashes, man, d)[0], ['ISQ-C01'])        # empty folder
+            (Path(d) / 'i' / 'C' / 'slide_01.png').write_text('x')
+            self.assertEqual(automate.plan(rows, hashes, man, d)[0], ['ISQ-C01'])        # one slide of two
+            (Path(d) / 'i' / 'C' / 'slide_02.png').write_text('x')
             self.assertEqual(automate.plan(rows, hashes, man, d)[0], [])
+
+    def test_a_video_with_a_frame_missing_is_planned_again(self):
+        rows = automate.read_rows(automate.table_to_csv(table(VIDEO)))
+        _, hashes = automate.plan(rows, {}, [])
+        with tempfile.TemporaryDirectory() as d:
+            man = [{'asset': 'ISQ-V01', 'folder': 'i/V', 'frames': 2, 'video': True, 'cover': True}]
+            folder = Path(d) / 'i' / 'V'; (folder / 'frames').mkdir(parents=True)
+            for name in ('video.mp4', 'cover.png', 'frames/frame_01.png', 'frames/frame_02.png'):
+                (folder / name).write_text('x')
+            self.assertEqual(automate.plan(rows, hashes, man, d)[0], [])
+            (folder / 'frames' / 'frame_02.png').unlink()
+            self.assertEqual(automate.plan(rows, hashes, man, d)[0], ['ISQ-V01'])
+
+    def test_expected_media_files_per_kind(self):
+        self.assertEqual(automate.asset_files({'folder': 'b/V', 'video': True, 'cover': True, 'frames': 2}),
+                         ['b/V/video.mp4', 'b/V/cover.png', 'b/V/frames/frame_01.png', 'b/V/frames/frame_02.png'])
+        self.assertEqual(automate.asset_files({'folder': 'b/Q', 'video': False, 'card': True, 'frames': 1}), ['b/Q/card.png'])
+        self.assertEqual(automate.asset_files({'folder': 'b/C', 'video': False, 'frames': 2}), ['b/C/slide_01.png', 'b/C/slide_02.png'])
+        self.assertEqual(automate.asset_files({'folder': ''}), [])
 
     def test_drop_assets_never_deletes_outside_the_output_folder(self):
         with tempfile.TemporaryDirectory() as d:
@@ -212,6 +240,25 @@ class Runs(unittest.TestCase):
         (self.out / 'index.html').unlink()
         _, _, run = self.go(table(CAROUSEL))
         self.assertEqual(run.scripts(), ['claims_check.py', 'gallery.py', 'package.py'])
+
+    def test_a_deleted_slide_is_rendered_again_on_an_unchanged_sheet(self):
+        self.go(table(CAROUSEL))
+        (self.out / 'ideaSquared' / 'ISQ-C01_x' / 'slide_01.png').unlink()
+        status, _, _ = self.go(table(CAROUSEL))
+        self.assertEqual(status['rendered'], ['ISQ-C01'])
+
+    def test_deleted_post_folders_are_rebuilt_on_an_unchanged_sheet_including_text_only_sheets(self):
+        import shutil
+        for sheet in (table(CAROUSEL), table(TEXT)):
+            self.go(sheet)
+            _, _, run = self.go(sheet)
+            self.assertEqual(run.calls, [])
+            (self.out / 'posts' / 'P' / 'LinkedIn' / 'P_LinkedIn_caption.txt').unlink()      # one file
+            _, _, run = self.go(sheet)
+            self.assertEqual(run.scripts(), ['claims_check.py', 'gallery.py', 'package.py'])
+            shutil.rmtree(self.out / 'posts')                                                # the whole folder
+            _, _, run = self.go(sheet)
+            self.assertEqual(run.scripts(), ['claims_check.py', 'gallery.py', 'package.py'])
 
     def test_a_failed_forced_pass_is_retried_in_full(self):
         self.go(table(CAROUSEL, VIDEO))

@@ -3,7 +3,8 @@
 `automate.py` does the weekly steps by itself on a timer. Each pass it:
 
 1. Reads the **Social posts** tab.
-2. Stops early if nothing in the tab changed since the last good pass and the output is all still on disk.
+2. Stops early if nothing in the tab changed since the last good pass and every image, video and post file it made is still on disk.
+   If something was deleted, it is made again.
 3. Runs `checks/claims_check.py`. An error stops the pass; nothing is rendered until the row is fixed.
 4. Renders only the rows whose asset text changed (Brand, Format, Asset ID, Pillar, Title or Content), plus any row not rendered yet.
    Moving a post to another week, or changing its Status, does not render it again.
