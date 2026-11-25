@@ -72,7 +72,7 @@ X_LIMIT = 280
 X_URL_LENGTH = 23               # X counts every URL as 23 characters
 
 # Warn about emoji in these brands' rows.
-NO_EMOJI_BRANDS = ('ideaSquared', 'CreatrGrid')
+NO_EMOJI_BRANDS = ('CreatrGrid',)   # ideaSquared and AdoptDontShop use emoji as part of their voice
 EMOJI_RE = re.compile('[\U0001F000-\U0001FAFF\u2600-\u27BF\u2B50\u2B55\u231A\u231B\u23E9-\u23FA\uFE0F\u200D]')
 
 # American spellings (outside URLs and hashtags).  British forms are not matched.

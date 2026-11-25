@@ -165,8 +165,8 @@ class Warnings(unittest.TestCase):
         self.assertIn(('WARNING', 'too-many-hashtags'), rules(carousel(Content=CAROUSEL + '\n\nCaption: x\n' + ' '.join(f'#t{i}' for i in range(7)))))
         self.assertNotIn(('WARNING', 'too-many-hashtags'), rules(carousel(Content=CAROUSEL + '\n\nCaption: x\n' + ' '.join(f'#t{i}' for i in range(6)))))
 
-    def test_emoji_only_for_isq_and_cg(self):
-        self.assertIn(('WARNING', 'emoji'), rules(row(Brand='ideaSquared', Content='Nice \U0001F680')))
+    def test_emoji_warning_only_for_creatrgrid(self):
+        self.assertNotIn(('WARNING', 'emoji'), rules(row(Brand='ideaSquared', Content='Nice \U0001F680')))
         self.assertIn(('WARNING', 'emoji'), rules(row(Brand='CreatrGrid', Content='Nice \U0001F389')))
         self.assertNotIn(('WARNING', 'emoji'), rules(row(Brand='AdoptDontShop', Content='Nice \U0001F43E')))
         self.assertNotIn(('WARNING', 'emoji'), rules(row(Brand='ideaSquared', Content='Arrow → and ’ quote')))
