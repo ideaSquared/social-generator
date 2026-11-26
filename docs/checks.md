@@ -26,7 +26,7 @@ ROW 36 We cut our own claims: ERROR banned-phrase: "waitlist" in: ...
 ### Warnings
 
 - `long-beat` (over 14 words), `long-slide-heading` (over 8 words), `too-many-hashtags` (over 6 in a caption, or in a text post).
-- `emoji` in ideaSquared or CreatrGrid rows.
+- `emoji` in CreatrGrid rows. ideaSquared and AdoptDontShop use emoji as part of their voice, so they are not flagged.
 - `american-spelling`: color, organization, favorite, behavior, center, analyze (and their common forms), outside URLs and hashtags.
 - `unresolved-check`: the Check cell contains `CONFLICT` or `NOT confirmed`, so it is not forgotten.
 
