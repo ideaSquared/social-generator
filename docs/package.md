@@ -1,4 +1,4 @@
-# One folder per post and platform
+# One folder per brand, platform and post
 
 ```
 python package.py out --csv posts.csv
@@ -9,20 +9,28 @@ Run it after `render.py`. It reads the sheet and the rendered assets and writes 
 ```
 out/posts/
   schedule.csv                     every post in calendar order, with its check note
-  ADS-C01/
-    Instagram/  ADS-C01_Instagram_01.png ... _caption.txt  _alt.txt
-    Facebook/   ADS-C01_Facebook_01.png  ... _caption.txt  _alt.txt
-  ISQ-C01/
-    LinkedIn/   ISQ-C01_LinkedIn.pdf  _caption.txt  _alt.txt
-    Instagram/  ...
-  ADS-V01/
-    TikTok/     ADS-V01_TikTok.mp4  _cover.png  _caption.txt  _alt.txt
-  CG-X01/
-    X/          CG-X01_X_post.txt
+  AdoptDontShop/
+    Instagram/
+      ADS-C01/  ADS-C01_Instagram_01.png ... _caption.txt  _alt.txt
+      ADS-V01/  ADS-V01_Instagram.mp4  _cover.png  _caption.txt  _alt.txt
+    Facebook/
+      ADS-C01/  ADS-C01_Facebook_01.png  ... _caption.txt  _alt.txt
+    TikTok/
+      ADS-V01/  ADS-V01_TikTok.mp4  _cover.png  _caption.txt  _alt.txt
+  ideaSquared/
+    LinkedIn/
+      ISQ-C01/  ISQ-C01_LinkedIn.pdf  _caption.txt  _alt.txt
+    Instagram/
+      ISQ-C01/  ...
+  CreatrGrid/
+    X/
+      CG-X01/   CG-X01_X_post.txt
 ```
 
-A row gets one folder for its **Platform** and one for each platform in **Also post to**. Every file name
+The top level is the row's **Brand**, so everything for one account on one platform sits in one folder.
+A row gets one post folder under its **Platform** and one under each platform in **Also post to**. Every file name
 starts with the post and platform, so a file is still identifiable after it has been moved to a phone.
+In `schedule.csv` the Post column is the same path: `AdoptDontShop/Instagram/ADS-C01`.
 
 ## What each platform gets
 
@@ -64,7 +72,9 @@ The sheet's posting tabs show the same text: `posting_tabs.py` writes it from th
 
 - `--only ADS-C01,CG-X03` rebuilds just those posts.
 
-A post's folder is deleted and rebuilt each run, so removing a platform from the sheet removes its folder.
-A full run (no `--only`) also removes folders for rows that are no longer in the sheet and rewrites `schedule.csv`
-in calendar order. Asset IDs may only use letters, numbers, `-` and `_`.
+A post's folders are deleted and rebuilt each run, so removing a platform from the sheet, or changing a row's brand,
+leaves no old copy behind. A full run (no `--only`) also removes folders for rows that are no longer in the sheet,
+removes the older `out/posts/<post>/<platform>/` layout, and rewrites `schedule.csv` in calendar order.
+It only ever deletes folders shaped like its own output; anything else you put under `out/posts` is left alone.
+Asset IDs and brand names may only use letters, numbers, `-` and `_`; a row with any other brand is skipped with a warning.
 Rows that have not been rendered yet are skipped with a warning.

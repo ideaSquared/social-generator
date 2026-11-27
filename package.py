@@ -5,11 +5,12 @@
 
 Reads the sheet CSV and render.py's output folder, and writes:
 
-    out/posts/<AssetID>/<Platform>/<AssetID>_<Platform>_...
+    out/posts/<Brand>/<Platform>/<AssetID>/<AssetID>_<Platform>_...
 
-One folder for every platform a row is posted to (its Platform plus everything in "Also post to").
-Each folder holds only what that platform needs, with the caption adjusted for it, so nothing has
-to be worked out at posting time. No AI: the same sheet and output always give the same folders.
+Split by brand, then by platform, so everything for one account sits in one place. A row gets one folder
+for every platform it is posted to (its Platform plus everything in "Also post to"). Each folder holds
+only what that platform needs, with the caption adjusted for it, so nothing has to be worked out at
+posting time. No AI: the same sheet and output always give the same folders.
 """
 import argparse, csv, json, re, shutil, sys
 from pathlib import Path
@@ -88,6 +89,50 @@ def package_asset(row, entry, out_dir, dest, platform):
     return made
 
 
+def post_dir(root, brand, platform, aid):
+    return root / brand / platform / aid
+
+
+def is_platform_tree(folder):
+    """True for a folder this tool made under posts/: nothing in it but platform folders."""
+    return all(c.is_dir() and c.name in PLATFORMS for c in folder.iterdir())
+
+
+def remove_post(root, aid):
+    """Delete every folder a post has, under any brand and platform, so a rebuild leaves nothing stale."""
+    if not root.is_dir():
+        return
+    for brand in root.iterdir():
+        if not (brand.is_dir() and SAFE_ID.match(brand.name) and is_platform_tree(brand)):
+            continue
+        for platform in brand.iterdir():
+            if (platform / aid).is_dir():
+                shutil.rmtree(platform / aid)
+
+
+def prune(root, current):
+    """A full run mirrors the sheet: remove post folders for rows that have gone, then the folders left empty.
+
+    current is {(brand, platform, asset_id)}. Only folders shaped like this tool's own output are touched:
+    a top-level folder that holds nothing but platform folders. That covers a brand that left the sheet and
+    the older posts/<AssetID>/<Platform>/ layout."""
+    if not root.is_dir():
+        return
+    for brand in list(root.iterdir()):
+        if not (brand.is_dir() and SAFE_ID.match(brand.name) and is_platform_tree(brand)):
+            continue
+        for platform in list(brand.iterdir()):
+            for post in list(platform.iterdir()):
+                if post.is_dir() and (brand.name, platform.name, post.name) not in current:
+                    shutil.rmtree(post)
+                elif post.is_file() and not any(b == brand.name for b, _, _ in current):
+                    post.unlink()                  # a file from the older layout, where this was the post folder
+            if not any(platform.iterdir()):
+                platform.rmdir()
+        if not any(brand.iterdir()):
+            brand.rmdir()
+
+
 def run(out_dir, csv_path, only=None):
     """Returns (folders_written, skipped, schedule_rows)."""
     out_dir = Path(out_dir)
@@ -98,6 +143,7 @@ def run(out_dir, csv_path, only=None):
     root = out_dir / 'posts'
     written = skipped = 0
     schedule = []
+    seen = set()
     current = set()
     for row in rows:
         aid, kind = (row.get('Asset ID') or '').strip(), kind_of(row.get('Format'))
@@ -105,14 +151,16 @@ def run(out_dir, csv_path, only=None):
             continue
         if only and aid not in only:
             continue
-        # The ID becomes a folder that is deleted and rebuilt, so it must be a single plain name under out/posts.
-        if not SAFE_ID.match(aid) or (root / aid).resolve().parent != root.resolve():
+        # The ID and the brand become folders that are deleted and rebuilt, so each must be a single plain name.
+        if not SAFE_ID.match(aid):
             warn(f'{aid!r}: not a usable Asset ID (letters, numbers, - and _ only), skipped'); skipped += 1; continue
-        if aid in current:
+        brand = (row.get('Brand') or '').strip()
+        if not SAFE_ID.match(brand):
+            warn(f'{aid}: {brand!r} is not a usable Brand (letters, numbers, - and _ only), skipped'); skipped += 1; continue
+        if aid in seen:
             warn(f'{aid}: Asset ID used by more than one row, later row skipped'); skipped += 1; continue
-        current.add(aid)
-        if (root / aid).is_dir():
-            shutil.rmtree(root / aid)              # rebuilt whole, so no stale platform folders remain
+        seen.add(aid)
+        remove_post(root, aid)                     # rebuilt whole, so no stale platform or brand folders remain
         platforms = platforms_for(row)
         if not platforms:
             warn(f'{aid}: no platform set, skipped'); skipped += 1; continue
@@ -121,7 +169,9 @@ def run(out_dir, csv_path, only=None):
             warn(f'{aid}: not rendered yet, skipped'); skipped += 1; continue
         captions = captions_in(row.get('Content') or '', kind == 'text')
         for platform in platforms:
-            dest = root / aid / platform
+            dest = post_dir(root, brand, platform, aid)
+            if dest.resolve().parent.parent.parent != root.resolve():
+                warn(f'{aid}/{platform}: folder would fall outside {root}, skipped'); skipped += 1; continue
             dest.mkdir(parents=True)
             stem = f'{aid}_{platform}'
             try:
@@ -134,17 +184,15 @@ def run(out_dir, csv_path, only=None):
             for note in notes:
                 warn(f'{aid}/{platform}: {note}')
             written += 1
+            current.add((brand, platform, aid))
             schedule.append({'_order': (gallery.parse_week_day(row.get('Week / day', '')), len(schedule)),
-                             'Week / day': row.get('Week / day', ''), 'Post': f'{aid}/{platform}', 'Brand': row.get('Brand', ''),
+                             'Week / day': row.get('Week / day', ''), 'Post': f'{brand}/{platform}/{aid}', 'Brand': brand,
                              'Format': row.get('Format', ''), 'Title': row.get('Title', ''), 'Files': len(files) + 1,
                              'Check before posting': row.get('Check before posting', '')})
     schedule.sort(key=lambda s: s.pop('_order'))   # calendar order; rows on the same day keep sheet order
     if not only:
         # A full run mirrors the sheet: folders for rows that have gone are removed, and the schedule is rewritten.
-        if root.is_dir():
-            for d in root.iterdir():
-                if d.is_dir() and SAFE_ID.match(d.name) and d.name not in current:
-                    shutil.rmtree(d)
+        prune(root, current)
         sched = root / 'schedule.csv'
         if schedule:
             with open(sched, 'w', newline='', encoding='utf-8') as f:

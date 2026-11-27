@@ -49,7 +49,7 @@ fixed text, not a formula, so that it copies out of the sheet without extra quot
 ## Where the text comes from
 
 The same rules as the caption files `package.py` writes (`captions.py`, described in `docs/package.md`), so the green
-cell and `out/posts/<post>/<platform>/..._caption.txt` always hold the same text:
+cell and `out/posts/<brand>/<platform>/<post>/..._caption.txt` always hold the same text:
 
 | Platform | Links | Hashtags kept |
 |---|---|---|

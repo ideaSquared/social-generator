@@ -80,32 +80,38 @@ class Folders(unittest.TestCase):
     def test_one_folder_per_platform_with_the_right_files(self):
         written, skipped, schedule = package.run(self.out, self.csv)
         self.assertEqual((written, skipped), (6, 1))        # CG-C99 is not rendered
-        self.assertEqual(self.names('ISQ-C01'), ['Facebook', 'Instagram', 'LinkedIn'])
-        self.assertEqual(self.names('ISQ-C01', 'LinkedIn'), ['ISQ-C01_LinkedIn.pdf', 'ISQ-C01_LinkedIn_alt.txt', 'ISQ-C01_LinkedIn_caption.txt'])
-        self.assertEqual(self.names('ISQ-C01', 'Instagram'), ['ISQ-C01_Instagram_01.png', 'ISQ-C01_Instagram_02.png', 'ISQ-C01_Instagram_alt.txt', 'ISQ-C01_Instagram_caption.txt'])
-        self.assertEqual(self.names('ADS-V01', 'TikTok'), ['ADS-V01_TikTok.mp4', 'ADS-V01_TikTok_alt.txt', 'ADS-V01_TikTok_caption.txt', 'ADS-V01_TikTok_cover.png'])
-        self.assertEqual(self.names('CG-X01', 'X'), ['CG-X01_X_post.txt'])
+        # Split by brand, then platform, then post.
+        self.assertEqual(self.names(), ['AdoptDontShop', 'CreatrGrid', 'ideaSquared', 'schedule.csv'])
+        self.assertEqual(self.names('ideaSquared'), ['Facebook', 'Instagram', 'LinkedIn'])
+        self.assertEqual(self.names('AdoptDontShop'), ['Instagram', 'TikTok'])
+        self.assertEqual(self.names('ideaSquared', 'LinkedIn'), ['ISQ-C01'])
+        self.assertEqual(self.names('ideaSquared', 'LinkedIn', 'ISQ-C01'), ['ISQ-C01_LinkedIn.pdf', 'ISQ-C01_LinkedIn_alt.txt', 'ISQ-C01_LinkedIn_caption.txt'])
+        self.assertEqual(self.names('ideaSquared', 'Instagram', 'ISQ-C01'), ['ISQ-C01_Instagram_01.png', 'ISQ-C01_Instagram_02.png', 'ISQ-C01_Instagram_alt.txt', 'ISQ-C01_Instagram_caption.txt'])
+        self.assertEqual(self.names('AdoptDontShop', 'TikTok', 'ADS-V01'), ['ADS-V01_TikTok.mp4', 'ADS-V01_TikTok_alt.txt', 'ADS-V01_TikTok_caption.txt', 'ADS-V01_TikTok_cover.png'])
+        self.assertEqual(self.names('CreatrGrid', 'X', 'CG-X01'), ['CG-X01_X_post.txt'])
         # Calendar order (Tue, Wed, Fri), not sheet order; platforms keep their order within a post.
-        self.assertEqual([s['Post'] for s in schedule], ['CG-X01/X', 'ISQ-C01/LinkedIn', 'ISQ-C01/Instagram', 'ISQ-C01/Facebook', 'ADS-V01/TikTok', 'ADS-V01/Instagram'])
+        self.assertEqual([s['Post'] for s in schedule], ['CreatrGrid/X/CG-X01', 'ideaSquared/LinkedIn/ISQ-C01', 'ideaSquared/Instagram/ISQ-C01',
+                                                         'ideaSquared/Facebook/ISQ-C01', 'AdoptDontShop/TikTok/ADS-V01', 'AdoptDontShop/Instagram/ADS-V01'])
         self.assertTrue((self.out / 'posts' / 'schedule.csv').is_file())
 
     def test_captions_differ_by_platform(self):
         package.run(self.out, self.csv)
-        read = lambda p: (self.out / 'posts' / 'ISQ-C01' / p / f'ISQ-C01_{p}_caption.txt').read_text(encoding='utf-8')
+        read = lambda p: (self.out / 'posts' / 'ideaSquared' / p / 'ISQ-C01' / f'ISQ-C01_{p}_caption.txt').read_text(encoding='utf-8')
         self.assertIn('https://ideasquared.co.uk', read('LinkedIn'))
         self.assertIn('Link in bio.', read('Instagram'))
-        self.assertEqual((self.out / 'posts' / 'CG-X01' / 'X' / 'CG-X01_X_post.txt').read_text(encoding='utf-8'), 'One link. creatrgrid.com\n')
+        self.assertEqual((self.out / 'posts' / 'CreatrGrid' / 'X' / 'CG-X01' / 'CG-X01_X_post.txt').read_text(encoding='utf-8'), 'One link. creatrgrid.com\n')
 
     def test_rerun_clears_a_platform_that_was_removed(self):
         package.run(self.out, self.csv)
         self.csv.write_text(self.csv.read_text(encoding='utf-8').replace('"Instagram, Facebook"', 'Instagram'), encoding='utf-8')
         package.run(self.out, self.csv)
-        self.assertEqual(self.names('ISQ-C01'), ['Instagram', 'LinkedIn'])
+        self.assertEqual(self.names('ideaSquared'), ['Instagram', 'LinkedIn'])
 
     def test_only(self):
         written, _, _ = package.run(self.out, self.csv, {'CG-X01'})
         self.assertEqual(written, 1)
-        self.assertEqual(self.names(), ['CG-X01'])
+        self.assertEqual(self.names(), ['CreatrGrid'])
+        self.assertEqual(self.names('CreatrGrid', 'X'), ['CG-X01'])
 
     def test_unsafe_asset_ids_never_touch_other_folders(self):
         victim = self.out / 'victim'; victim.mkdir(); (victim / 'keep.txt').write_text('x')
@@ -122,7 +128,7 @@ class Folders(unittest.TestCase):
         lines = self.csv.read_text(encoding='utf-8').split('\nCreatrGrid,X')
         self.csv.write_text(lines[0] + '\n', encoding='utf-8')            # CG-X01 and CG-C99 rows removed
         package.run(self.out, self.csv)
-        self.assertEqual(self.names(), ['ADS-V01', 'ISQ-C01', 'schedule.csv'])
+        self.assertEqual(self.names(), ['AdoptDontShop', 'ideaSquared', 'schedule.csv'])
         self.csv.write_text(HEAD, encoding='utf-8')                        # nothing left
         package.run(self.out, self.csv)
         self.assertEqual(self.names(), [])
@@ -130,18 +136,47 @@ class Folders(unittest.TestCase):
     def test_only_leaves_other_posts_alone(self):
         package.run(self.out, self.csv)
         package.run(self.out, self.csv, {'CG-X01'})
-        self.assertIn('ISQ-C01', self.names())
+        self.assertEqual(self.names('ideaSquared', 'LinkedIn'), ['ISQ-C01'])
 
     def test_row_that_lost_its_platforms_is_cleared(self):
         package.run(self.out, self.csv)
         self.csv.write_text(self.csv.read_text(encoding='utf-8').replace('CreatrGrid,X,,Text post,CG-X01', 'CreatrGrid,,,Text post,CG-X01'), encoding='utf-8')
         package.run(self.out, self.csv)
-        self.assertNotIn('CG-X01', self.names())
+        self.assertNotIn('CreatrGrid', self.names())
+
+    def test_a_post_that_changes_brand_moves_and_leaves_nothing_behind(self):
+        package.run(self.out, self.csv)
+        self.csv.write_text(self.csv.read_text(encoding='utf-8').replace('CreatrGrid,X,,Text post,CG-X01', 'ideaSquared,X,,Text post,CG-X01'), encoding='utf-8')
+        package.run(self.out, self.csv, {'CG-X01'})                         # even a partial run clears the old brand's copy
+        self.assertEqual(self.names('ideaSquared', 'X'), ['CG-X01'])
+        self.assertFalse((self.out / 'posts' / 'CreatrGrid' / 'X' / 'CG-X01').exists())
+
+    def test_full_run_removes_the_older_layout(self):
+        old = self.out / 'posts' / 'ISQ-C01' / 'LinkedIn'; old.mkdir(parents=True)
+        (old / 'ISQ-C01_LinkedIn_caption.txt').write_text('old')
+        package.run(self.out, self.csv)
+        self.assertEqual(self.names(), ['AdoptDontShop', 'CreatrGrid', 'ideaSquared', 'schedule.csv'])
+
+    def test_folders_this_tool_did_not_make_are_left_alone(self):
+        mine = self.out / 'posts' / 'notes'; mine.mkdir(parents=True); (mine / 'keep.txt').write_text('x')
+        deep = self.out / 'posts' / 'drafts' / 'Instagram'; deep.mkdir(parents=True)
+        (self.out / 'posts' / 'drafts' / 'readme.txt').write_text('x'); (deep / 'keep.txt').write_text('x')
+        package.run(self.out, self.csv)
+        self.assertTrue((mine / 'keep.txt').is_file())
+        self.assertTrue((deep / 'keep.txt').is_file())
+
+    def test_a_row_with_an_unusable_brand_is_skipped(self):
+        victim = self.out / 'victim'; victim.mkdir(); (victim / 'keep.txt').write_text('x')
+        self.csv.write_text(HEAD + '../victim,X,,Text post,CG-X01,T,Hello,Week 1 · Tue,\n'
+                            + ',X,,Text post,CG-X02,T,Hello,Week 1 · Tue,\n', encoding='utf-8')
+        written, skipped, _ = package.run(self.out, self.csv)
+        self.assertEqual((written, skipped), (0, 2))
+        self.assertTrue((victim / 'keep.txt').is_file())
 
     def test_text_post_override(self):
         self.csv.write_text(HEAD + 'CreatrGrid,X,LinkedIn,Text post,CG-X01,T,"General text.\nCaption: still text\n\nCaption for X: Short text",Week 1 · Tue,\n', encoding='utf-8')
         package.run(self.out, self.csv)
-        read = lambda p: (self.out / 'posts' / 'CG-X01' / p / f'CG-X01_{p}_post.txt').read_text(encoding='utf-8')
+        read = lambda p: (self.out / 'posts' / 'CreatrGrid' / p / 'CG-X01' / f'CG-X01_{p}_post.txt').read_text(encoding='utf-8')
         self.assertEqual(read('X'), 'Short text\n')
         self.assertEqual(read('LinkedIn'), 'General text.\nCaption: still text\n')
 

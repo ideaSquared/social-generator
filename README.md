@@ -74,13 +74,13 @@ python checks/claims_check.py posts.csv          # 1. catch missing sources and 
 python render.py posts.csv --out out --new-only  # 2. make assets for rows where "Assets made" is empty
 python checks/visual_check.py out                # 3. catch wrong sizes, clipped text, stale videos
 python gallery.py out --csv posts.csv            # 4. open out/index.html to review the week
-python package.py out --csv posts.csv            # 5. sort everything into out/posts/<post>/<platform>/
+python package.py out --csv posts.csv            # 5. sort everything into out/posts/<brand>/<platform>/<post>/
 python posting_tabs.py posts.csv --out out       # 6. write the text for the sheet's posting tabs
 ```
 
-Upload from `out/posts`. Each post has one folder per platform, for example `out/posts/ADS-C01/Instagram/` and
-`out/posts/ADS-C01/Facebook/`, holding the files that platform needs and a caption adjusted for it
-(see `docs/package.md`). `out/posts/schedule.csv` lists every post in calendar order.
+Upload from `out/posts`. It is split by brand, then by platform, then by post, for example
+`out/posts/AdoptDontShop/Instagram/ADS-C01/` and `out/posts/AdoptDontShop/Facebook/ADS-C01/`. Each post folder holds
+the files that platform needs and a caption adjusted for it (see `docs/package.md`). `out/posts/schedule.csv` lists every post in calendar order.
 
 Then, in the sheet:
 
@@ -107,7 +107,7 @@ The sheet is the checklist. Its **START HERE** tab has the full steps; in short:
 
    | Column | What to do |
    |---|---|
-   | STEP 1 | Upload every file in the folder it names, for example `out/posts/ADS-C01/Instagram/` |
+   | STEP 1 | Upload every file in the folder it names, for example `out/posts/AdoptDontShop/Instagram/ADS-C01/` |
    | STEP 2 | Copy the text in the green cell into the box the heading names |
    | STEP 3 | Schedule the post for the date and time in **Schedule for**, then type `Yes` in the yellow cell |
 
@@ -210,7 +210,7 @@ Each is a separate script with its own notes in `docs/`.
 | Script | What it does | Notes |
 |---|---|---|
 | `render.py posts.csv --out out` | Carousels, cards, videos, covers, story versions | `docs/card-formats.md` |
-| `package.py out --csv posts.csv` | One folder per post and platform, with the right files and a per-platform caption | `docs/package.md` |
+| `package.py out --csv posts.csv` | One folder per brand, platform and post, with the right files and a per-platform caption | `docs/package.md` |
 | `posting_tabs.py posts.csv --out out` | The post code and paste-ready text for each platform tab in the sheet | `docs/posting-tabs.md` |
 | `postprocess.py all out` | One PDF per carousel (LinkedIn document posts) and alt text per asset | `docs/postprocess.md` |
 | `motion.py out` | A `video_motion.mp4` per video with a progress bar, slow push-in and transitions. Slow: a few minutes per video | `docs/motion.md` |
@@ -278,7 +278,7 @@ This has been tested by running `automate.py` on Linux. The Docker image and com
 **Day to day**
 
 - Edit the sheet. Within an hour the review page and `posts/` folders update. Only rows whose text changed are rendered again.
-- Open the review page, approve, and upload from `posts/<Asset ID>/<Platform>/`.
+- Open the review page, approve, and upload from `posts/<Brand>/<Platform>/<Asset ID>/`.
 - "Assets made" is filled in for you. Putting new posts on the sheet's posting tabs is still yours to do:
   run `posting_tabs.py` on `posts.csv` (see `docs/posting-tabs.md`).
 - `docker compose logs -f runner` shows what it did. `<review page>/status.json` shows the last result.

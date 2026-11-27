@@ -41,7 +41,7 @@ Reading the sheet with a service account needs two extra packages: `pip install 
 | File | What it is |
 |---|---|
 | `index.html` | The review page |
-| `posts/<Asset ID>/<Platform>/` | The files and caption to post, and `posts/schedule.csv` |
+| `posts/<Brand>/<Platform>/<Asset ID>/` | The files and caption to post, and `posts/schedule.csv` |
 | `status.json` | When the last pass ran, whether it worked, and which rows it rendered |
 | `posts.csv` | The copy of the tab the last pass used |
 | `.state.json` | What it has already rendered. Delete it (or use `--force`) to start again |
