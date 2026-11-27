@@ -35,7 +35,7 @@ for every command below: `.venv/bin/python` on macOS and Linux, `.venv\Scripts\p
 
 ### 3. Tell it where Chrome is (only if step 5 says it cannot find Chrome)
 
-The tool looks for `google-chrome` or `chromium` on your PATH. If Chrome is somewhere else, set `CHROME` to its full path first.
+The tool looks for `google-chrome` or `chromium` on your PATH, and on Windows also in Chrome's usual install folders. If Chrome is somewhere else, set `CHROME` to its full path first.
 
 ```
 # Windows (PowerShell)

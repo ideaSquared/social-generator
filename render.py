@@ -1,4 +1,4 @@
-import sys, os, json, html, subprocess, shutil, re
+import sys, os, json, html, subprocess, shutil, re, pathlib
 from concurrent.futures import ThreadPoolExecutor
 from lib import *
 def ff(fam,fn,ws,style='normal'): return ''.join(f'@font-face{{font-family:"{fam}";src:url("../fonts/{fn}-{w}-{style}.woff2") format("woff2");font-weight:{w};font-style:{style}}}' for w in ws)
@@ -82,7 +82,7 @@ def ads_vbeat(i,n,t,w,h):
 T={'ideaSquared':dict(css=ISQ_CSS,gcover=isq_gcover,gslide=isq_gslide,gend=lambda t,w,h:isq_end(t,w,h,300 if h<1500 else 420),vtitle=isq_vtitle,vbeat=isq_vbeat,vend=lambda t,w,h:isq_end(t,w,h,420),cta='Follow the build.'),
    'AdoptDontShop':dict(css=ADS_CSS,gcover=ads_gcover,gslide=ads_gslide,gend=lambda t,w,h:ads_end(t,w,h,300 if h<1500 else 420),vtitle=ads_vtitle,vbeat=ads_vbeat,vend=lambda t,w,h:ads_end(t,w,h,420),cta='Follow the Build')}
 def page_html(css,body,w,h): return f'<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><style>{FONT}{BASE}{css}body{{width:{w}px;height:{h}px}}</style></head><body>{body}</body></html>'
-CHROME=os.environ.get('CHROME') or shutil.which('google-chrome') or shutil.which('chromium') or shutil.which('chromium-browser') or 'google-chrome'
+CHROME=os.environ.get('CHROME') or shutil.which('google-chrome') or shutil.which('chromium') or shutil.which('chromium-browser') or next((p for v in ('PROGRAMFILES','PROGRAMFILES(X86)','LOCALAPPDATA') if v in os.environ for p in [os.path.join(os.environ[v],'Google','Chrome','Application','chrome.exe')] if os.path.exists(p)),'google-chrome')
 def shot(job):
     hp,png,w,h=job
     for _try in range(4):
@@ -167,7 +167,7 @@ CARD_FORMATS={'text card':'text','stat card':'stat','quote card':'quote'}
 # ---------- sheet -> frames (no AI: the sheet is the only input)
 import csv, argparse, html as _html
 HERE=os.path.dirname(os.path.abspath(__file__))
-FONT=(FONT+'@font-face{font-family:"Inter";src:url("../fonts/inter-latin-700-normal.woff2") format("woff2");font-weight:700;font-style:normal}').replace('../fonts/','file://'+HERE+'/fonts/')
+FONT=(FONT+'@font-face{font-family:"Inter";src:url("../fonts/inter-latin-700-normal.woff2") format("woff2");font-weight:700;font-style:normal}').replace('../fonts/',pathlib.Path(HERE,'fonts').as_uri()+'/')
 def parse(content,fmt=''):
     """Content cell format.
     Video:    Hook: ... / Beats: (one '- ' line each) / Close: ...
