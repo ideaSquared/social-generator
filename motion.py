@@ -50,8 +50,10 @@ def total_duration(durs, fade):
     return sum(durs) + fade
 
 
-def build_command(pngs, durs, out_path, accent, style='calm', track=None):
-    """Return the ffmpeg argument list (pure function, nothing is executed). track is a music file, or None for silent."""
+def build_command(pngs, durs, out_path, accent, style='calm', track=None, start=0.0):
+    """Return the ffmpeg argument list (pure function, nothing is executed).
+
+    track is a music file, or None for silent. start is how far into the track to begin."""
     if style not in STYLES:
         raise ValueError(f'unknown style {style!r}')
     if len(pngs) != len(durs) or not pngs:
@@ -86,7 +88,7 @@ def build_command(pngs, durs, out_path, accent, style='calm', track=None):
     audio = ['-an']
     if track:
         cmd += music.input_args(track)
-        parts.append(music.audio_filter(len(pngs), total))
+        parts.append(music.audio_filter(len(pngs), total, start))
         audio = music.output_args(total)
     cmd += ['-filter_complex', ';'.join(parts), '-map', '[v]', '-t', f'{total:.3f}',
             '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '19', '-pix_fmt', 'yuv420p',
@@ -103,9 +105,11 @@ def load_jobs(out_dir, only=None):
             continue
         folder = os.path.join(out_dir, m['folder'])
         pngs = [os.path.join(folder, 'frames', 'frame_%02d.png' % k) for k in range(1, m['frames'] + 1)]
-        # render.py records the track it used; a row with Music set to No has none, so its motion version is silent too.
-        track = music.track_for(m['brand']) if m.get('music') else None
-        jobs.append((m, pngs, durations(m['text']), os.path.join(folder, 'video_motion.mp4'), track))
+        # render.py records the track and start it used, so the motion version has the same audio as video.mp4.
+        # A row with Music set to No has none recorded, and stays silent.
+        track = music.resolve(m.get('music'))
+        start = float(m.get('music_start') or 0) if track else 0.0
+        jobs.append((m, pngs, durations(m['text']), os.path.join(folder, 'video_motion.mp4'), track, start))
     return jobs
 
 
@@ -119,12 +123,12 @@ def main(argv=None):
     jobs = load_jobs(os.path.abspath(a.out_dir), only)
     if not jobs:
         print('no video assets found'); return 1
-    for m, pngs, durs, out, track in jobs:
+    for m, pngs, durs, out, track, start in jobs:
         missing = [p for p in pngs if not os.path.exists(p)]
         if missing:
             print(f"{m['asset']}: missing {missing[0]}", file=sys.stderr); return 1
         t0 = time.time()
-        subprocess.run(build_command(pngs, durs, out, accent_for(m['brand']), a.style, track), check=True)
+        subprocess.run(build_command(pngs, durs, out, accent_for(m['brand']), a.style, track, start), check=True)
         print(f"{m['asset']} ({a.style}) -> {out} in {time.time() - t0:.1f}s")
     return 0
 

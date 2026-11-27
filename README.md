@@ -133,7 +133,7 @@ STEP 1. The image is made by `product_shots.py`, not `render.py`.
 | Sheet format | Output in `out/<Brand>/<AssetID>_<title>/` |
 |---|---|
 | `Graphic / carousel` | `slide_01.png` onwards at 1080x1350 |
-| `Text-on-screen video` | `video.mp4` at 1080x1920, every frame as a PNG, and `cover.png`. With a track in `music/`, the video has quiet music under it (`docs/music.md`) |
+| `Text-on-screen video` | `video.mp4` at 1080x1920, every frame as a PNG, and `cover.png`. With tracks in `music/<Brand>/`, the video has quiet music under it (`docs/music.md`) |
 | `Text card`, `Stat card`, `Quote card` | one `card.png` at 1080x1350 |
 | `Text post` | nothing (the text is the post) |
 
@@ -162,7 +162,7 @@ The columns of **Social posts** the tool uses:
 | Content | all | The script, then the caption |
 | Pillar | render | Small label on the asset |
 | Assets made | render | `--new-only` skips rows where this is filled |
-| Music | render | Optional. `No` leaves that row's video silent. Empty means music, if the brand has a track |
+| Music | render | Optional. `No` leaves that row's video silent. Empty means music, if the brand has tracks |
 | Platform, Also post to, Week / day | gallery, checks, posting tabs | Grouping, filters and the X length check |
 | Scheduled for | the sheet | For a seasonal post with no **Week / day**: its calendar date. The sheet schedules it on that date |
 | Check before posting | gallery, checks | Source for each claim; `allow:` overrides |
@@ -215,7 +215,8 @@ Each is a separate script with its own notes in `docs/`.
 | `posting_tabs.py posts.csv --out out` | The post code and paste-ready text for each platform tab in the sheet | `docs/posting-tabs.md` |
 | `postprocess.py all out` | One PDF per carousel (LinkedIn document posts) and alt text per asset | `docs/postprocess.md` |
 | `motion.py out` | A `video_motion.mp4` per video with a progress bar, slow push-in and transitions. Slow: a few minutes per video | `docs/motion.md` |
-| `music/<Brand>.mp3` | Not a script: one track per brand, put under every video for that brand by `render.py` and `motion.py` | `docs/music.md` |
+| `music/<Brand>/` | Not a script: a pool of tracks per brand. `render.py` and `motion.py` put them under that brand's videos in turn | `docs/music.md` |
+| `find_cuts.py` | Finds clean start points in each music track and writes `music/cuts.json`. Needs `librosa`. Only run after changing the tracks | `docs/music.md` |
 | `gallery.py out --csv posts.csv` | One review page showing each week's posts, captions and check notes | `docs/gallery.md` |
 | `brandkit.py --out out` | Banners, avatars, highlight covers and link preview images per brand | `docs/brandkit.md` |
 | `product_shots.py shots.example.json --out out/product-shots` | Screenshots of your own pages in phone or browser frames. Needs internet access | `docs/product-shots.md` |
