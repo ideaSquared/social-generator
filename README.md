@@ -78,6 +78,17 @@ python package.py out --csv posts.csv            # 5. sort everything into out/p
 python posting_tabs.py posts.csv --out out       # 6. write the text for the sheet's posting tabs
 ```
 
+Some posts use a screenshot of a real product page instead of a rendered asset. Those come from a separate script,
+which the steps above do not run:
+
+```
+python product_shots.py shots.example.json --out out/product-shots   # screenshots, for posts that name one
+```
+
+Run it when the sheet has a post whose **Check before posting** says `Post with the image <file>`, for example
+`creatrgrid-maya-phone_post.png`. The file is then at `out/product-shots/<file>`. It is not copied into `out/posts`.
+The script needs internet access and Chrome, because it loads the live pages (see `docs/product-shots.md`).
+
 Upload from `out/posts`. It is split by brand, then by platform, then by post, for example
 `out/posts/AdoptDontShop/Instagram/ADS-C01/` and `out/posts/AdoptDontShop/Facebook/ADS-C01/`. Each post folder holds
 the files that platform needs and a caption adjusted for it (see `docs/package.md`). `out/posts/schedule.csv` lists every post in calendar order.
@@ -126,7 +137,8 @@ from the rules in `captions.py`. What else is in a post's folder:
 | `_alt.txt` | Paste into the platform's alt text box, if it has one. Do not upload it |
 
 A text post that names an image in **Check before posting** (`Post with the image <file>`) shows that file name in
-STEP 1. The image is made by `product_shots.py`, not `render.py`.
+STEP 1, with its folder: `out/product-shots/<file>`. The image is made by `product_shots.py`, not `render.py`,
+so run that script first (see "Each week").
 
 ## What it makes
 
