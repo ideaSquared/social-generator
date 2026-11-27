@@ -75,13 +75,17 @@ python render.py posts.csv --out out --new-only  # 2. make assets for rows where
 python checks/visual_check.py out                # 3. catch wrong sizes, clipped text, stale videos
 python gallery.py out --csv posts.csv            # 4. open out/index.html to review the week
 python package.py out --csv posts.csv            # 5. sort everything into out/posts/<post>/<platform>/
+python posting_tabs.py posts.csv --out out       # 6. write the text for the sheet's posting tabs
 ```
 
-Post from `out/posts`. Each post has one folder per platform, for example `out/posts/ADS-C01/Instagram/` and
+Upload from `out/posts`. Each post has one folder per platform, for example `out/posts/ADS-C01/Instagram/` and
 `out/posts/ADS-C01/Facebook/`, holding the files that platform needs and a caption adjusted for it
 (see `docs/package.md`). `out/posts/schedule.csv` lists every post in calendar order.
 
-Then, in the sheet, type `Yes` in **Assets made** for the rows you rendered, and paste each live link into **Posted URL**.
+Then, in the sheet:
+
+1. Type `Yes` in **Assets made** for the rows you rendered.
+2. Put each new post on its posting tabs, using the files in `out/posting-tabs/` (see `docs/posting-tabs.md`).
 
 Useful `render.py` options:
 
@@ -92,25 +96,37 @@ Useful `render.py` options:
 
 ## Posting
 
-Posting is done by hand, in one sitting a week, using each platform's own scheduler. Nothing in this repo posts for you.
+Posts are scheduled by hand, in one sitting a week, using each platform's own scheduler. Nothing in this repo posts for you.
 
-1. Open `out/posts/schedule.csv`. It lists every post in the sheet in calendar order, by "Week / day" label, not by date.
-   It does not know what is approved or already live, so pick this week's rows yourself and skip any that still need a check
-   or already have a **Posted URL** in the sheet.
-2. For each post you picked, open its folder, for example `out/posts/ADS-C01/Instagram/`. What is in it:
+The sheet is the checklist. Its **START HERE** tab has the full steps; in short:
 
-   | File | What to do with it |
+1. Open the **Schedule now** tab. It lists every post due in the next 7 days that is not scheduled yet, with the
+   exact date and time to schedule it for, and anything overdue.
+2. Click **Open** on a row. It goes to that post's row on the platform's tab, for example **Post - Instagram**.
+   The row reads left to right:
+
+   | Column | What to do |
    |---|---|
-   | `_01.png`, `_02.png`, ... or one `.png` | Upload as the post's images, in number order |
-   | `.pdf` (LinkedIn carousels) | Upload as a document post |
-   | `.mp4` | Upload as the video |
-   | `_cover.png` (videos only) | Optional: set it as the video's cover. Do not add it as an extra image |
-   | `_caption.txt` | Paste as the caption. Do not upload it |
-   | `_alt.txt` | Paste into the platform's alt text box, if it has one. Do not upload it |
-   | `_post.txt` (text posts) | Paste as the post. There is nothing to upload |
+   | STEP 1 | Upload every file in the folder it names, for example `out/posts/ADS-C01/Instagram/` |
+   | STEP 2 | Copy the text in the green cell into the box the heading names |
+   | STEP 3 | Schedule the post for the date and time in **Schedule for**, then type `Yes` in the yellow cell |
 
-3. Set the date and time in that platform's scheduler.
-4. When a post is live, paste its link into **Posted URL** in the sheet.
+3. Typing `Yes` sets the row to Scheduled and takes it off **Schedule now**.
+
+The green cell holds the same text as the `_caption.txt` or `_post.txt` file in the post's folder, because both come
+from the rules in `captions.py`. What else is in a post's folder:
+
+| File | What to do with it |
+|---|---|
+| `_01.png`, `_02.png`, ... or one `.png` | Upload as the post's images, in number order |
+| `.pdf` (LinkedIn carousels) | Upload as a document post |
+| `.mp4` | Upload as the video |
+| `_cover.png` (videos only) | Optional: set it as the video's cover. Do not add it as an extra image |
+| `_caption.txt`, `_post.txt` | The same text as the green cell. Do not upload it |
+| `_alt.txt` | Paste into the platform's alt text box, if it has one. Do not upload it |
+
+A text post that names an image in **Check before posting** (`Post with the image <file>`) shows that file name in
+STEP 1. The image is made by `product_shots.py`, not `render.py`.
 
 ## What it makes
 
@@ -123,8 +139,19 @@ Posting is done by hand, in one sitting a week, using each platform's own schedu
 
 ## The sheet
 
-The **Start here** tab in the sheet explains every column and has a copyable Content template for each format.
-The tool finds columns by their header name, so columns can be reordered but not renamed.
+The tool reads one tab, **Social posts**. It finds columns by their header name, so columns can be reordered but
+not renamed. The **Templates** tab has a copyable Content template for each format.
+
+The other tabs are for scheduling and are not read by the tool:
+
+| Tab | What it is |
+|---|---|
+| START HERE | The scheduling steps, and the settings: the date of week 1, an optional break, and the time of day for each platform |
+| Schedule now | The weekly to-do list. Fills itself in |
+| Post - LinkedIn, Post - X, Post - Instagram, Post - Facebook, Post - TikTok | One row per post on that platform, with the upload folder, the text to paste and the time to schedule it for |
+| Engine (hidden) | Turns each row's **Week / day** into a date |
+
+The columns of **Social posts** the tool uses:
 
 | Column | Used by | What it does |
 |---|---|---|
@@ -135,7 +162,8 @@ The tool finds columns by their header name, so columns can be reordered but not
 | Content | all | The script, then the caption |
 | Pillar | render | Small label on the asset |
 | Assets made | render | `--new-only` skips rows where this is filled |
-| Platform, Also post to, Week / day | gallery, checks | Grouping, filters and the X length check |
+| Platform, Also post to, Week / day | gallery, checks, posting tabs | Grouping, filters and the X length check |
+| Scheduled for | the sheet | For a seasonal post with no **Week / day**: its calendar date. The sheet schedules it on that date |
 | Check before posting | gallery, checks | Source for each claim; `allow:` overrides |
 | Ready? | you | Filled in by the sheet: `OK`, or what is missing |
 
@@ -183,6 +211,7 @@ Each is a separate script with its own notes in `docs/`.
 |---|---|---|
 | `render.py posts.csv --out out` | Carousels, cards, videos, covers, story versions | `docs/card-formats.md` |
 | `package.py out --csv posts.csv` | One folder per post and platform, with the right files and a per-platform caption | `docs/package.md` |
+| `posting_tabs.py posts.csv --out out` | The post code and paste-ready text for each platform tab in the sheet | `docs/posting-tabs.md` |
 | `postprocess.py all out` | One PDF per carousel (LinkedIn document posts) and alt text per asset | `docs/postprocess.md` |
 | `motion.py out` | A `video_motion.mp4` per video with a progress bar, slow push-in and transitions. Slow: a few minutes per video | `docs/motion.md` |
 | `gallery.py out --csv posts.csv` | One review page showing each week's posts, captions and check notes | `docs/gallery.md` |
@@ -249,8 +278,9 @@ This has been tested by running `automate.py` on Linux. The Docker image and com
 **Day to day**
 
 - Edit the sheet. Within an hour the review page and `posts/` folders update. Only rows whose text changed are rendered again.
-- Open the review page, approve, and post from `posts/<Asset ID>/<Platform>/`.
-- "Assets made" is filled in for you. "Posted URL" is still yours to paste.
+- Open the review page, approve, and upload from `posts/<Asset ID>/<Platform>/`.
+- "Assets made" is filled in for you. Putting new posts on the sheet's posting tabs is still yours to do:
+  run `posting_tabs.py` on `posts.csv` (see `docs/posting-tabs.md`).
 - `docker compose logs -f runner` shows what it did. `<review page>/status.json` shows the last result.
 - To update the code: `git pull && docker compose up -d --build`.
 
