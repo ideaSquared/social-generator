@@ -84,13 +84,30 @@ T={'ideaSquared':dict(css=ISQ_CSS,gcover=isq_gcover,gslide=isq_gslide,gend=lambd
    'AdoptDontShop':dict(css=ADS_CSS,gcover=ads_gcover,gslide=ads_gslide,gend=lambda t,w,h:ads_end(t,w,h,300 if h<1500 else 420),vtitle=ads_vtitle,vbeat=ads_vbeat,vend=lambda t,w,h:ads_end(t,w,h,420),cta='Follow the Build')}
 def page_html(css,body,w,h): return f'<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><style>{FONT}{BASE}{css}body{{width:{w}px;height:{h}px}}</style></head><body>{body}</body></html>'
 CHROME=os.environ.get('CHROME') or shutil.which('google-chrome') or shutil.which('chromium') or shutil.which('chromium-browser') or next((p for v in ('PROGRAMFILES','PROGRAMFILES(X86)','LOCALAPPDATA') if v in os.environ for p in [os.path.join(os.environ[v],'Google','Chrome','Application','chrome.exe')] if os.path.exists(p)),'google-chrome')
-def shot(job):
-    hp,png,w,h=job
-    for _try in range(4):
-      subprocess.run([CHROME,'--headless=new','--no-sandbox','--disable-gpu','--hide-scrollbars','--force-device-scale-factor=1',f'--window-size={w},{h}','--virtual-time-budget=3000',f'--screenshot={png}',f'file://{hp}'],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=120)
-      from PIL import Image
-      im=Image.open(png).convert('RGB'); 
-      if im.size==(w,h) and not (im.getpixel((w-3,h-3))==(255,255,255) and im.getpixel((3,h-3))!=(255,255,255)): break
+SHOT_TRIES=4
+def shot_ok(png,w,h):
+    """True when the screenshot exists at the right size and is not Chrome's half-painted page."""
+    from PIL import Image
+    try:
+        with Image.open(png) as f: im=f.convert('RGB')
+    except OSError: return False
+    return im.size==(w,h) and not (im.getpixel((w-3,h-3))==(255,255,255) and im.getpixel((3,h-3))!=(255,255,255))
+def shot(job,run=subprocess.run):
+    """Screenshot one HTML page. Chrome sometimes hangs or paints half a page when many run at once, so a failed
+    try is repeated. Each try gets its own profile folder: Chromes that share one can block each other."""
+    import tempfile
+    hp,png,w,h=job; why='the screenshot was not complete'
+    for _try in range(SHOT_TRIES):
+        if os.path.exists(png): os.remove(png)
+        profile=tempfile.mkdtemp(prefix='render-chrome-')
+        try:
+            run([CHROME,'--headless=new','--no-sandbox','--disable-gpu','--hide-scrollbars','--no-first-run','--force-device-scale-factor=1',f'--user-data-dir={profile}',f'--window-size={w},{h}','--virtual-time-budget=3000',f'--screenshot={png}',pathlib.Path(hp).resolve().as_uri()],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=60)
+            if shot_ok(png,w,h): return
+            why='the screenshot was not complete'
+        except subprocess.TimeoutExpired: why='Chrome did not finish within 60 seconds'
+        except subprocess.CalledProcessError as e: why=f'Chrome exited with code {e.returncode}'
+        finally: shutil.rmtree(profile,ignore_errors=True)
+    raise RuntimeError(f'could not make {png} after {SHOT_TRIES} tries: {why}')
 def video_cmd(job):
     """The ffmpeg command for one video. job is (pngs, durs, mp4, track, start): track is a music file or None (silent), start is how far into it to begin."""
     pngs,durs,mp4,track,start=job
@@ -250,7 +267,7 @@ def main():
             extra['stories']=len(sf)
         man.append(dict(asset=aid,brand=brand,title=r['Title'],folder=os.path.relpath(dd,out),frames=len(fr),video=vid,text=[' / '.join(x for x in args if isinstance(x,str)) for fn,args in fr],footnote=d.get('footnote',''),**extra))
     if a.dry_run: jobs=[];vids=[];covers=[]
-    with ThreadPoolExecutor(os.cpu_count() or 2) as ex: list(ex.map(shot,jobs))
+    with ThreadPoolExecutor(min(os.cpu_count() or 2,6)) as ex: list(ex.map(shot,jobs))   # more Chromes than this at once makes them hang
     for src,dst in covers: shutil.copyfile(src,dst)
     with ThreadPoolExecutor(2) as ex: list(ex.map(video,vids))
     mp=os.path.join(out,'manifest.json')
