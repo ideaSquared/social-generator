@@ -178,6 +178,25 @@ def _page_socket(port):
         time.sleep(0.2)
 
 
+def _shut_down(proc, ws):
+    """Ask Chrome to close itself, so its helper processes have stopped writing to the profile folder before the
+    caller deletes it. Killing only the main process leaves them running for a moment."""
+    if ws:
+        try:
+            ws.send(json.dumps({'id': 0, 'method': 'Browser.close'}))
+            proc.wait(timeout=15)
+        except (OSError, CDPError, subprocess.TimeoutExpired):
+            pass
+        ws.close()
+    if proc.poll() is None:
+        proc.terminate()
+        try:
+            proc.wait(timeout=15)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+
+
 def screenshot(chrome, profile, url, out_png, width, height, scale, mobile=False, user_agent=None,
                color_scheme=None, wait_ms=4000, scroll_y=0, load_timeout=60):
     """Load url at exactly width x height CSS pixels and write a PNG of the visible page.
@@ -212,10 +231,4 @@ def screenshot(chrome, profile, url, out_png, width, height, scale, mobile=False
             f.write(base64.b64decode(shot['data']))
         return laid_out
     finally:
-        if ws:
-            ws.close()
-        proc.terminate()
-        try:
-            proc.wait(timeout=15)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+        _shut_down(proc, ws)
