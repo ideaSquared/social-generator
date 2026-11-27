@@ -26,7 +26,7 @@ To keep the tracks somewhere else, set `MUSIC_DIR` to that folder.
 |---|---|
 | Starts at the beginning | The track plays from its first second |
 | Cut to the video's length | A track shorter than the video loops |
-| Levelled | Set to about -18 LUFS, so a loud track and a quiet one come out the same |
+| Levelled | Aimed at -18 LUFS, so a loud track and a quiet one come out close to the same. Measured on the three tracks in `music/`: between -16 and -17 LUFS |
 | Faded | 0.4 seconds in, 1 second out |
 | Encoded | AAC, 160 kbit/s, 48 kHz |
 
