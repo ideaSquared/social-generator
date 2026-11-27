@@ -58,6 +58,8 @@ https://ideasquared.co.uk
 Caption for TikTok: A shorter one for TikTok. #BuildInPublic
 ```
 
+The sheet's posting tabs show the same text: `posting_tabs.py` writes it from these rules (see `docs/posting-tabs.md`).
+
 ## Options
 
 - `--only ADS-C01,CG-X03` rebuilds just those posts.
