@@ -6,7 +6,7 @@ Adds gentle motion to the text videos that `render.py` produced. It only reads t
     python motion.py <out_dir> [--only ID1,ID2] [--style calm|lively]
 
 For every video asset in `<out_dir>/manifest.json` it writes `video_motion.mp4` next to
-`video.mp4` (1080x1920, 30 fps, H.264, yuv420p, faststart). It has the same music as `video.mp4`, or none if
+`video.mp4` (1080x1920, 30 fps, H.264, yuv420p, faststart). It has the same music as `video.mp4`, from the same start point, or none if
 that was rendered silent (see `docs/music.md`). Frame durations use the
 same formula as `render.py` (title 2.8 s, end 3.4 s, beats `max(2.4, min(5.2, 1.4 + 0.3 * words))`).
 
