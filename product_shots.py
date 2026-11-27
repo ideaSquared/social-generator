@@ -18,6 +18,7 @@ from urllib.parse import urlparse
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+import cdp  # noqa: E402
 
 LAYOUTS = {'post': (1080, 1350), 'story': (1080, 1920), 'landscape': (1600, 900)}
 DEVICES = {
@@ -152,26 +153,6 @@ def is_blank(im):
 
 
 # ---------------------------------------------------------------- capture
-def chrome_args(shot, out_png, profile):
-    dev = DEVICES[shot['device']]
-    s = dev['scale']
-    args = [CHROME, '--headless=new', '--no-sandbox', '--disable-gpu', '--hide-scrollbars',
-            '--no-first-run', '--disable-extensions', f'--user-data-dir={profile}',
-            f'--force-device-scale-factor={s}',
-            # taller window when scrolling; the top scroll_y CSS px are cropped afterwards
-            f'--window-size={dev["w"]},{dev["h"] + shot["scroll_y"]}',
-            f'--virtual-time-budget={shot["wait_ms"]}',
-            '--run-all-compositor-stages-before-draw',
-            f'--screenshot={out_png}']
-    if dev['ua']:
-        args.append(f'--user-agent={dev["ua"]}')
-    if shot['color_scheme']:
-        # Chrome's blink enum: 0 = dark, 1 = light
-        args.append(f'--blink-settings=preferredColorScheme={0 if shot["color_scheme"] == "dark" else 1}')
-    args.append(shot['url'])
-    return args
-
-
 def preflight(url):
     """Cheap reachability check so a network failure is reported as such, not as a blank image."""
     if not url.startswith(('http://', 'https://')):
@@ -198,25 +179,27 @@ def capture(shot, raw_dir, do_preflight=True):
         os.remove(out_png)
     profile = tempfile.mkdtemp(prefix='psh-')
     try:
-        try:
-            r = subprocess.run(chrome_args(shot, out_png, profile), stdout=subprocess.DEVNULL,
-                               stderr=subprocess.PIPE, text=True,
-                               timeout=shot['wait_ms'] / 1000 + 90)
-        except subprocess.TimeoutExpired:
-            raise CaptureError('Chrome timed out')
-        except FileNotFoundError:
-            raise CaptureError(f'Chrome not found ({CHROME}); set the CHROME environment variable')
+        # The device size is set through the DevTools protocol, not the window size. A desktop Chrome window
+        # cannot always be made as narrow as a phone, and then the page is laid out wider than the capture.
+        laid_out = cdp.screenshot(CHROME, profile, shot['url'], out_png, dev['w'], dev['h'], s,
+                                  mobile=shot['device'] == 'phone', user_agent=dev['ua'],
+                                  color_scheme=shot['color_scheme'], wait_ms=shot['wait_ms'],
+                                  scroll_y=shot['scroll_y'])
+    except FileNotFoundError:
+        raise CaptureError(f'Chrome not found ({CHROME}); set the CHROME environment variable')
+    except cdp.CDPError as e:
+        raise CaptureError(f'Chrome failed: {e}')
     finally:
         shutil.rmtree(profile, ignore_errors=True)
-    if r.returncode != 0 or not os.path.exists(out_png):
-        tail = (r.stderr or '').strip().splitlines()[-1:] or ['no output']
-        raise CaptureError(f'Chrome failed (exit {r.returncode}): {tail[0][:200]}')
+    if not os.path.exists(out_png):
+        raise CaptureError('Chrome wrote no screenshot')
     im = Image.open(out_png).convert('RGB')
-    want_w, want_h = dev['w'] * s, (dev['h'] + shot['scroll_y']) * s
+    want_w, want_h = dev['w'] * s, dev['h'] * s
     if im.size != (want_w, want_h):
         raise CaptureError(f'unexpected capture size {im.size}, expected {(want_w, want_h)}')
-    if shot['scroll_y']:
-        im = im.crop((0, shot['scroll_y'] * s, want_w, want_h))
+    if isinstance(laid_out, (int, float)) and laid_out > dev['w']:
+        raise CaptureError(f"the page was laid out {laid_out:g} CSS pixels wide, not {dev['w']}: "
+                           'its right-hand side would be cut off')
     im.save(out_png)
     if shot['check_blank'] and is_blank(im):
         std, ink = image_stats(im)
