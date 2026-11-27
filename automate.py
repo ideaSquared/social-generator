@@ -18,7 +18,7 @@ HERE = Path(__file__).resolve().parent
 API = 'https://sheets.googleapis.com/v4/spreadsheets'
 SCOPE_READ = 'https://www.googleapis.com/auth/spreadsheets.readonly'
 SCOPE_WRITE = 'https://www.googleapis.com/auth/spreadsheets'
-RENDER_FIELDS = ('Brand', 'Format', 'Asset ID', 'Title', 'Content', 'Pillar')   # what ends up on the asset
+RENDER_FIELDS = ('Brand', 'Format', 'Asset ID', 'Title', 'Content', 'Pillar', 'Music')   # what ends up on the asset
 MADE = 'Assets made'
 CARDS = ('text card', 'stat card', 'quote card')
 

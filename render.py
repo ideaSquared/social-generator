@@ -1,4 +1,5 @@
 import sys, os, json, html, subprocess, shutil, re, pathlib
+import music
 from concurrent.futures import ThreadPoolExecutor
 from lib import *
 def ff(fam,fn,ws,style='normal'): return ''.join(f'@font-face{{font-family:"{fam}";src:url("../fonts/{fn}-{w}-{style}.woff2") format("woff2");font-weight:{w};font-style:{style}}}' for w in ws)
@@ -90,15 +91,19 @@ def shot(job):
       from PIL import Image
       im=Image.open(png).convert('RGB'); 
       if im.size==(w,h) and not (im.getpixel((w-3,h-3))==(255,255,255) and im.getpixel((3,h-3))!=(255,255,255)): break
-def video(job):
-    pngs,durs,mp4=job
+def video_cmd(job):
+    """The ffmpeg command for one video. job is (pngs, durs, mp4, track); track is a music file or None (silent)."""
+    pngs,durs,mp4,track=job
     fade=.35; cmd=['ffmpeg','-y','-loglevel','error']
     for p,d in zip(pngs,durs): cmd+=['-loop','1','-t',f'{d+fade:.2f}','-framerate','30','-i',p]
     fc='';prev='[0:v]';off=0
     for i in range(1,len(pngs)):
         off+=durs[i-1]; fc+=f'{prev}[{i}:v]xfade=transition=fade:duration={fade}:offset={off:.2f}[v{i}];'; prev=f'[v{i}]'
-    cmd+=['-filter_complex',fc.rstrip(';'),'-map',prev,'-c:v','libx264','-preset','veryfast','-crf','20','-pix_fmt','yuv420p','-r','30','-movflags','+faststart',mp4]
-    subprocess.run(cmd,check=True)
+    total=sum(durs)+fade; audio=[]
+    if track: cmd+=music.input_args(track); fc+=music.audio_filter(len(pngs),total); audio=music.output_args(total)
+    cmd+=['-filter_complex',fc.rstrip(';'),'-map',prev,'-c:v','libx264','-preset','veryfast','-crf','20','-pix_fmt','yuv420p','-r','30']+audio+['-movflags','+faststart',mp4]
+    return cmd
+def video(job): subprocess.run(video_cmd(job),check=True)
 # ---------- CreatrGrid templates (tokens from the design system)
 BG,SUR,BOR,TX,MUT,PRI,ACC,DEEP='#f8fafc','#ffffff','#e2e8f0','#0f172a','#64748b','#7c3aed','#ec4899','#6d28d9'
 def cg_mark(s,uid='g'):
@@ -232,7 +237,10 @@ def main():
             png=os.path.join(dd,'frames','frame_%02d.png'%k) if vid else os.path.join(dd,'card.png') if card else os.path.join(dd,'slide_%02d.png'%k); jobs.append((hp,png,w,h)); pngs.append(png)
             if vid: durs.append(2.8 if fn=='vtitle' else 3.4 if fn=='vend' else max(2.4,min(5.2,1.4+len(args[-1].split())*.3)))
         extra={}
-        if vid: vids.append((pngs,durs,os.path.join(dd,'video.mp4'))); covers.append((pngs[0],os.path.join(dd,'cover.png'))); extra['cover']=True
+        if vid:
+            track=music.track_for(brand) if music.wants_music(r) else None
+            vids.append((pngs,durs,os.path.join(dd,'video.mp4'),track)); covers.append((pngs[0],os.path.join(dd,'cover.png'))); extra['cover']=True
+            if track: extra['music']=os.path.basename(track)
         if card: extra['card']=True
         if a.stories and fmt.startswith('Graphic'):
             sf,sw,sh=frames(title,d,story=True); sf=[(fn,tuple(typo(x) if isinstance(x,str) else x for x in args)) for fn,args in sf]
@@ -249,5 +257,7 @@ def main():
         keep=[m for m in json.load(open(mp,encoding='utf-8')) if m['asset'] not in {x['asset'] for x in man}]
         man=sorted(keep+man,key=lambda m:m['asset'])
     json.dump(man,open(mp,'w',encoding='utf-8'),indent=1,ensure_ascii=False)
+    silent=sorted({m['brand'] for m in man if m.get('video') and not m.get('music') and not music.track_for(m['brand'])})
+    if silent and vids: print('no music track for: '+', '.join(silent)+' (videos are silent; see docs/music.md)')
     print(f'{len(man)} assets, {len(jobs)} frames, {len(vids)} videos -> {out}')
 if __name__=='__main__': main()

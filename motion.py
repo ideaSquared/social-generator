@@ -12,6 +12,8 @@ import subprocess
 import sys
 import time
 
+import music
+
 W, H, FPS = 1080, 1920, 30
 SS = 2                      # internal supersampling factor for the push-in
 ZOOM = 0.03                 # 100% -> 103% over each frame's duration
@@ -48,8 +50,8 @@ def total_duration(durs, fade):
     return sum(durs) + fade
 
 
-def build_command(pngs, durs, out_path, accent, style='calm'):
-    """Return the ffmpeg argument list (pure function, nothing is executed)."""
+def build_command(pngs, durs, out_path, accent, style='calm', track=None):
+    """Return the ffmpeg argument list (pure function, nothing is executed). track is a music file, or None for silent."""
     if style not in STYLES:
         raise ValueError(f'unknown style {style!r}')
     if len(pngs) != len(durs) or not pngs:
@@ -81,9 +83,14 @@ def build_command(pngs, durs, out_path, accent, style='calm'):
     parts.append(f"color=c={accent}:s={W}x{BAR_H}:r={FPS}:d={total:.3f},format=yuv420p[bar]")
     parts.append(f"{prev}drawbox=x=0:y=0:w=iw:h={BAR_H}:color=white@0.18:t=fill[tr]")
     parts.append(f"[tr][bar]overlay=x='-W+W*t/{total:.3f}':y=0:eval=frame:shortest=1,format=yuv420p[v]")
+    audio = ['-an']
+    if track:
+        cmd += music.input_args(track)
+        parts.append(music.audio_filter(len(pngs), total))
+        audio = music.output_args(total)
     cmd += ['-filter_complex', ';'.join(parts), '-map', '[v]', '-t', f'{total:.3f}',
             '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '19', '-pix_fmt', 'yuv420p',
-            '-r', str(FPS), '-an', '-movflags', '+faststart', out_path]
+            '-r', str(FPS)] + audio + ['-movflags', '+faststart', out_path]
     return cmd
 
 
@@ -96,7 +103,9 @@ def load_jobs(out_dir, only=None):
             continue
         folder = os.path.join(out_dir, m['folder'])
         pngs = [os.path.join(folder, 'frames', 'frame_%02d.png' % k) for k in range(1, m['frames'] + 1)]
-        jobs.append((m, pngs, durations(m['text']), os.path.join(folder, 'video_motion.mp4')))
+        # render.py records the track it used; a row with Music set to No has none, so its motion version is silent too.
+        track = music.track_for(m['brand']) if m.get('music') else None
+        jobs.append((m, pngs, durations(m['text']), os.path.join(folder, 'video_motion.mp4'), track))
     return jobs
 
 
@@ -110,12 +119,12 @@ def main(argv=None):
     jobs = load_jobs(os.path.abspath(a.out_dir), only)
     if not jobs:
         print('no video assets found'); return 1
-    for m, pngs, durs, out in jobs:
+    for m, pngs, durs, out, track in jobs:
         missing = [p for p in pngs if not os.path.exists(p)]
         if missing:
             print(f"{m['asset']}: missing {missing[0]}", file=sys.stderr); return 1
         t0 = time.time()
-        subprocess.run(build_command(pngs, durs, out, accent_for(m['brand']), a.style), check=True)
+        subprocess.run(build_command(pngs, durs, out, accent_for(m['brand']), a.style, track), check=True)
         print(f"{m['asset']} ({a.style}) -> {out} in {time.time() - t0:.1f}s")
     return 0
 
